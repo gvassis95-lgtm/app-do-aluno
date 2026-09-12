@@ -1791,7 +1791,11 @@ async function loadData(){
       }
     }
   }catch(e){ console.error('Erro ao restaurar sessão', e); }
-  await refreshAlunosAutorizados();
+  // Só busca a lista de alunos se alguém de fato logou (professor ou aluno) —
+  // antes do login, ninguém tem permissão de ler a tabela profiles (RLS), então
+  // chamar isso pra um visitante anônimo só gerava um erro de "permission
+  // denied" no console à toa, sem efeito nenhum no funcionamento do app.
+  if(state.session || state.professorMode) await refreshAlunosAutorizados();
   if(!state.session && !state.professorMode) state.view = 'login';
   // ---- visual identity / social links (shared, managed by the teacher) ----
   try{ const r = await storageGet('config_escola'); state.config = Object.assign({logoLight:'', logoDark:'', accent:'', whatsapp:'', instagram:'', youtube:'', tiktok:'', facebook:'', x:'', disabledTools:[], loginLayout:'padrao', loginImage:''}, r?JSON.parse(r.value):{}); }catch(e){ state.config = {logoLight:'', logoDark:'', accent:'', whatsapp:'', instagram:'', youtube:'', tiktok:'', facebook:'', x:'', disabledTools:[], loginLayout:'padrao', loginImage:''}; }
