@@ -2150,13 +2150,18 @@ function novaTarefaModalHtml(){
 const DEFAULT_TAB_SKELETON = 'e|--------------------------------|\nB|--------------------------------|\nG|--------------------------------|\nD|--------------------------------|\nA|--------------------------------|\nE|--------------------------------|';
 // ---- Stage 2: solos e materiais seguem o mesmo padrão das cifras — uma linha
 // por item na tabela do Supabase, índice via seleção de campos jsonb leves.
-const SOLO_INDEX_SELECT = 'id,titulo,destinatarios,artista:dados->artista,criadoEm:dados->criadoEm';
+// [Rodada 33] Mesmo motivo do comentário em MATERIAL_INDEX_SELECT mais abaixo:
+// `artista`/`criado_em` como colunas reais, nunca extraídas de dentro de
+// `dados` (que pode conter um PDF em base64, quando o solo é enviado como
+// PDF em vez de tablatura) — senão o índice de solos teria o mesmo risco de
+// ficar lento/travar conforme mais solos em PDF forem cadastrados.
+const SOLO_INDEX_SELECT = 'id,titulo,destinatarios,artista,criado_em';
 async function loadSolosIndex(){
   if(!sb){ state.solosIndex = []; return; }
   try{
     const { data, error } = await sb.from('solos').select(SOLO_INDEX_SELECT).order('criado_em', {ascending:true});
     if(error) throw error;
-    state.solosIndex = (data||[]).map(r=>({ id:r.id, titulo:r.titulo||'', artista:r.artista||'', destinatarios:r.destinatarios||[], criadoEm:r.criadoEm||Date.now() }));
+    state.solosIndex = (data||[]).map(r=>({ id:r.id, titulo:r.titulo||'', artista:r.artista||'', destinatarios:r.destinatarios||[], criadoEm: r.criado_em ? new Date(r.criado_em).getTime() : Date.now() }));
     state._soloKnownIds = new Set(state.solosIndex.map(s=>s.id));
   }catch(e){ console.error('Erro ao carregar solos', e); state.solosIndex=[]; }
 }
@@ -2164,7 +2169,7 @@ async function saveSolosIndex(){ return true; }
 async function saveSoloDetail(id, obj){
   if(!sb) return false;
   try{
-    await insertOrUpdate('solos', '_soloKnownIds', id, { id, titulo: obj.titulo||'', destinatarios: obj.destinatarios||[], dados: obj });
+    await insertOrUpdate('solos', '_soloKnownIds', id, { id, titulo: obj.titulo||'', destinatarios: obj.destinatarios||[], artista: obj.artista||'', dados: obj });
     return true;
   }catch(e){ console.error('Erro ao salvar solo', e); return false; }
 }
@@ -2183,13 +2188,26 @@ async function deleteSoloRemote(id){
   if(!sb) return;
   try{ const { error } = await sb.from('solos').delete().eq('id', id); if(error) throw error; if(state._soloKnownIds) state._soloKnownIds.delete(id); }catch(e){ console.error('Erro ao excluir solo', e); }
 }
-const MATERIAL_INDEX_SELECT = 'id,titulo,destinatarios,criadoEm:dados->criadoEm,pastaId:dados->pastaId';
+// [Rodada 33 — 14/09/2026] IMPORTANTE: esta seleção usa só colunas reais
+// (id/titulo/destinatarios/criado_em/pasta_id), nunca `dados->campo`. O índice
+// de materiais é lido inteiro a cada abertura do app (loadData) — se ele
+// precisasse extrair campos de dentro do jsonb `dados` (que guarda o PDF em
+// base64, podendo chegar a dezenas de MB por material), o Postgres precisaria
+// descompactar o `dados` INTEIRO de TODAS as linhas só pra tirar 2 campinhos
+// pequenos. Isso é exatamente o que causava o bug reportado pelo usuário
+// ("subo uns PDFs, atualizo a página e eles somem"): a query do índice ficava
+// cada vez mais lenta conforme mais materiais/PDFs maiores eram enviados, até
+// estourar o `statement timeout` do Supabase — e aí o catch abaixo zerava
+// `state.materiaisIndex` silenciosamente, fazendo TODOS os materiais (mesmo
+// os salvos com sucesso, ainda intactos no banco) sumirem da tela até a
+// próxima vez que a query desse certo. Ver seção da rodada 33 no CLAUDE.md.
+const MATERIAL_INDEX_SELECT = 'id,titulo,destinatarios,criado_em,pasta_id';
 async function loadMateriaisIndex(){
   if(!sb){ state.materiaisIndex = []; return; }
   try{
     const { data, error } = await sb.from('materiais').select(MATERIAL_INDEX_SELECT).order('criado_em', {ascending:true});
     if(error) throw error;
-    state.materiaisIndex = (data||[]).map(r=>({ id:r.id, titulo:r.titulo||'', destinatarios:r.destinatarios||[], criadoEm:r.criadoEm||Date.now(), pastaId:r.pastaId||null }));
+    state.materiaisIndex = (data||[]).map(r=>({ id:r.id, titulo:r.titulo||'', destinatarios:r.destinatarios||[], criadoEm: r.criado_em ? new Date(r.criado_em).getTime() : Date.now(), pastaId:r.pasta_id||null }));
     state._materialKnownIds = new Set(state.materiaisIndex.map(m=>m.id));
   }catch(e){ console.error('Erro ao carregar materiais', e); state.materiaisIndex=[]; }
 }
@@ -2197,9 +2215,21 @@ async function saveMateriaisIndex(){ return true; }
 async function saveMaterialDetail(id, obj){
   if(!sb) return false;
   try{
-    await insertOrUpdate('materiais', '_materialKnownIds', id, { id, titulo: obj.titulo||'', destinatarios: obj.destinatarios||[], dados: obj });
+    // pasta_id também vai como coluna real (não só dentro de `dados`), pelo
+    // mesmo motivo do comentário acima — ver MATERIAL_INDEX_SELECT.
+    await insertOrUpdate('materiais', '_materialKnownIds', id, { id, titulo: obj.titulo||'', destinatarios: obj.destinatarios||[], pasta_id: obj.pastaId||null, dados: obj });
     return true;
   }catch(e){ console.error('Erro ao salvar material', e); return false; }
+}
+// Move um material de pasta sem reler/regravar o `dados` inteiro (que pode
+// conter um PDF grande em base64) — só a coluna `pasta_id`, leve e rápida.
+async function updateMaterialPasta(id, pastaId){
+  if(!sb) return false;
+  try{
+    const { error } = await sb.from('materiais').update({ pasta_id: pastaId||null }).eq('id', id);
+    if(error) throw error;
+    return true;
+  }catch(e){ console.error('Erro ao mover material', e); return false; }
 }
 async function loadMaterialDetail(id){
   if(state.materiaisDetailCache[id]) return state.materiaisDetailCache[id];
@@ -4716,7 +4746,11 @@ function closeMobileMenu(){ if(!state.mobileMenuOpen) return; state.mobileMenuOp
 // separados — o Postgres guarda tudo numa linha só (coluna dados=jsonb), e o
 // índice é obtido pedindo só os campos leves dessa mesma linha (select com
 // jsonb path), sem baixar corpo/pdfData/chordOverrides da música inteira à toa.
-const CIFRA_INDEX_SELECT = 'id,titulo,destinatarios,artista:dados->artista,tom:dados->tom,tipo:dados->tipo,memorizada:dados->memorizada,dificuldade:dados->dificuldade,capo:dados->capo,tiradaDeOuvido:dados->tiradaDeOuvido,ritmos:dados->ritmos,criadoEm:dados->criadoEm';
+// [Rodada 33] Mesmo motivo do comentário em MATERIAL_INDEX_SELECT mais abaixo
+// — colunas reais, nunca `dados->campo`, pro índice de cifras não ficar
+// sujeito ao mesmo risco de travar conforme cifras em PDF (`corpo`/`pdfData`
+// dentro de `dados`) se acumularem.
+const CIFRA_INDEX_SELECT = 'id,titulo,destinatarios,artista,tom,tipo,memorizada,dificuldade,capo,tirada_de_ouvido,ritmos,criado_em';
 async function loadCifraIndex(){
   if(!sb){ state.cifraIndex = []; return; }
   try{
@@ -4724,8 +4758,8 @@ async function loadCifraIndex(){
     if(error) throw error;
     state.cifraIndex = (data||[]).map(r=>({
       id:r.id, titulo:r.titulo||'', artista:r.artista||'', tom:r.tom||'', tipo:r.tipo||'texto',
-      memorizada:!!r.memorizada, dificuldade:r.dificuldade||0, capo:r.capo||0, tiradaDeOuvido:!!r.tiradaDeOuvido,
-      ritmos:r.ritmos||[], destinatarios:r.destinatarios||[], criadoEm:r.criadoEm||Date.now()
+      memorizada:!!r.memorizada, dificuldade:r.dificuldade||0, capo:r.capo||0, tiradaDeOuvido:!!r.tirada_de_ouvido,
+      ritmos:r.ritmos||[], destinatarios:r.destinatarios||[], criadoEm: r.criado_em ? new Date(r.criado_em).getTime() : Date.now()
     }));
     state._cifraKnownIds = new Set(state.cifraIndex.map(c=>c.id));
   }catch(e){ console.error('Erro ao carregar repertório', e); state.cifraIndex=[]; }
@@ -4737,7 +4771,13 @@ async function saveIndex(){ return true; }
 async function saveDetail(id, obj){
   if(!sb) return false;
   try{
-    await insertOrUpdate('cifras', '_cifraKnownIds', id, { id, titulo: obj.titulo||'', destinatarios: obj.destinatarios||[], dados: obj });
+    await insertOrUpdate('cifras', '_cifraKnownIds', id, {
+      id, titulo: obj.titulo||'', destinatarios: obj.destinatarios||[],
+      artista: obj.artista||'', tom: obj.tom||'', tipo: obj.tipo||'texto',
+      memorizada: !!obj.memorizada, dificuldade: obj.dificuldade||0, capo: obj.capo||0,
+      tirada_de_ouvido: !!obj.tiradaDeOuvido, ritmos: obj.ritmos||[],
+      dados: obj
+    });
     return true;
   }catch(e){ console.error('Erro ao salvar cifra', e); return false; }
 }
@@ -4845,10 +4885,8 @@ async function excluirPasta(id){
   const afetados = state.materiaisIndex.filter(m=>m.pastaId===id);
   for(const m of afetados){
     m.pastaId = null;
-    try{
-      const full = state.materiaisDetailCache[m.id] || await loadMaterialDetail(m.id);
-      if(full){ full.pastaId = null; state.materiaisDetailCache[m.id] = full; await saveMaterialDetail(m.id, full); }
-    }catch(e){}
+    if(state.materiaisDetailCache[m.id]) state.materiaisDetailCache[m.id].pastaId = null;
+    await updateMaterialPasta(m.id, null);
   }
   render();
 }
@@ -4862,11 +4900,9 @@ async function moveMaterialToPasta(pastaId){
   meta.pastaId = pastaId || null;
   state.materialMoveId = null;
   render();
-  try{
-    const full = state.materiaisDetailCache[id] || await loadMaterialDetail(id);
-    if(full){ full.pastaId = pastaId||null; state.materiaisDetailCache[id] = full; await saveMaterialDetail(id, full); }
-    showToast('Material movido.');
-  }catch(e){ showToast('Não foi possível mover o material.', true); }
+  if(state.materiaisDetailCache[id]) state.materiaisDetailCache[id].pastaId = pastaId||null;
+  const ok = await updateMaterialPasta(id, pastaId||null);
+  if(ok) showToast('Material movido.'); else showToast('Não foi possível mover o material.', true);
 }
 async function openCifraViewer(id){
   stopAutoScroll(); state.scrolling=false;
