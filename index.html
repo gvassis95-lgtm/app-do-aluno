@@ -872,35 +872,48 @@
   .aluno-avatar{border-radius:50%;overflow:hidden;font-size:12.5px;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;background:var(--pill-bg);color:var(--muted);flex-shrink:0;}
   .cifra-row-inactive{opacity:.55;}
   /* Campo Harmônico (ajustado em 14/09/2026 — rodada 29, depois do feedback
-     sobre a 1ª versão da rodada 28). Duas visões diferentes agora:
+     sobre a 1ª versão da rodada 28; fontes/espaçamento aumentados na rodada
+     30 a pedido do usuário). Duas visões diferentes:
      - Um tom só: os 7 graus lado a lado (.harm-cols), sem "quadradão" ao
-       redor de cada um — só uma "coluna" com o numeral do grau em cima e os
-       dois nomes do acorde embaixo.
+       redor de cada um — só uma "coluna" com o numeral do grau em cima e o
+       nome do acorde embaixo (rodada 30: só um nome por vez — tríade OU
+       tétrade, ver toggle "Tríades/Tétrades" — antes vinham os dois
+       empilhados).
      - "Ver todos os tons": aí sim vira uma lista de verdade (reaproveita
        .cifra-list/.cifra-row, o mesmo padrão de linhas com borda embaixo
        usado em repertório/materiais), um tom por linha, com os 7 graus
-       daquele tom lado a lado (mais compactos) dentro da linha.
+       daquele tom lado a lado (mais compactos, esticando pra ocupar toda a
+       largura da linha — rodada 30) dentro da linha.
      Em ambos os casos a linha/coluna em si não é clicável (cursor/hover
      padrão de .cifra-row desligados) — só os nomes dos acordes são,
      abrindo o mesmo popup de diagrama usado nas cifras. */
-  .harm-cols{display:flex;flex-wrap:wrap;justify-content:center;gap:22px 18px;}
-  .harm-col{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:64px;}
+  .harm-cols{display:flex;flex-wrap:wrap;justify-content:center;gap:30px 28px;}
+  .harm-col{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:70px;}
   .harm-chord-row{cursor:default;}
   .harm-chord-row:hover{background:none;}
-  .harm-key-row{gap:18px;flex-wrap:wrap;row-gap:10px;}
-  .harm-key-label{font-weight:700;flex:0 0 auto;min-width:34px;}
-  .harm-cols-compact{gap:16px 14px;justify-content:flex-start;flex:1 1 auto;}
-  .harm-cols-compact .harm-col{min-width:0;}
+  .harm-key-row{gap:18px;flex-wrap:wrap;row-gap:14px;}
+  /* Cifra do tom (rodada 30): maior e na cor laranja do app, pra não embolar
+     visualmente com os acordes ao lado dentro da mesma linha. */
+  .harm-key-label{font-weight:800;flex:0 0 auto;min-width:44px;font-size:21px;color:var(--accent);}
+  /* justify-content:flex-start (herdado de .harm-cols) some na prática porque
+     cada .harm-col aqui ganha flex-grow (ver regra abaixo) — as 7 colunas
+     esticam pra preencher toda a largura da linha, em vez de ficarem
+     bunched à esquerda com um vazio grande à direita (bug visual reportado
+     pelo usuário na rodada 30). */
+  .harm-cols-compact{gap:20px 18px;justify-content:flex-start;flex:1 1 auto;}
+  .harm-cols-compact .harm-col{min-width:0;flex:1 1 0;}
   /* Numeral do grau: sempre em caixa alta (feito em harmComputeChords), cor
      laranjinha (--accent) e sem a caixinha/fundo que a 1ª versão tinha atrás
      dele — pedido do usuário em 14/09/2026. */
-  .harm-degree{font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.02em;}
+  .harm-degree{font-size:13px;font-weight:800;color:var(--accent);letter-spacing:.02em;}
   /* Os nomes dos acordes ficam na mesma cor do título da página (var(--text))
      em vez da cor de destaque laranja padrão de .chord — pedido do usuário
-     em 14/09/2026 ("numa cor mais clara... na cor do título da página"). */
+     em 14/09/2026 ("numa cor mais clara... na cor do título da página").
+     Fonte aumentada na rodada 30 (só existe mais uma linha de acorde por
+     coluna agora, ver harmChordColHtml, então dá pra deixar maior). */
   .harm-chord-main, .harm-chord-7{color:var(--text);}
-  .harm-chord-main{font-size:16px;}
-  .harm-chord-7{font-size:14px;}
+  .harm-chord-main{font-size:20px;}
+  .harm-chord-7{font-size:20px;}
   .avatar.aluno-avatar{border-radius:50%;overflow:hidden;}
   .aluno-avatar img{width:100%;height:100%;object-fit:cover;}
   .aluno-avatar-lg{width:64px;height:64px;font-size:20px;flex:0 0 auto;}
@@ -1127,6 +1140,13 @@ const FLAT_KEYS = ['F','Bb','Eb','Ab','Db','Gb','Cb','Dm','Gm','Cm','Fm','Bbm','
 const TEMPLATES = {
   '':      [0,2,2,1,0,0], 'm':[0,2,2,0,0,0], '7':[0,2,0,1,0,0],
   'm7':    [0,2,0,0,0,0], 'maj7':[0,2,1,1,0,0], 'sus4':[0,2,2,2,0,0],
+  // Acorde aumentado (E+), adicionado em 14/09/2026 — rodada 30: antes não
+  // existia nenhum template pra "aug", então getDiagram() caía no fallback
+  // `TEMPLATES['']` (maior) e mostrava o diagrama errado ao clicar num
+  // acorde aumentado (bug reportado pelo usuário). Formato de pestana móvel
+  // baseado no shape aberto de E+ (0,3,2,1,1,0 = E-C-E-G#-C-E: só notas do
+  // próprio acorde — fundamental, terça maior e quinta aumentada).
+  'aug':   [0,3,2,1,1,0],
 };
 const OPEN_CHORDS = {
   "C":['x',3,2,0,1,0], "C7":['x',3,2,3,1,0], "Cmaj7":['x',3,2,0,0,0],
@@ -1143,8 +1163,10 @@ const OPEN_CHORDS = {
 // "dim7" e "m7b5" continuam reconhecidas também, sem parênteses/símbolo, só
 // pra não invalidar cifras já digitadas antes dessa mudança — ver
 // canonQuality()/qualityDisplay() logo abaixo, que fazem a ponte entre as
-// duas grafias.
-const CHORD_RE = /^([A-G])(#|b)?(maj7|maj9|mMaj7|m7\(b5\)|m7b5|dim7|º7|madd9|m7|m9|m6|dim|º|aug|sus2|sus4|add9|7M|9|11|13|6|7|m)?(\/([A-G])(#|b)?)?$/;
+// duas grafias. "(#5)" (rodada 30) é a mesma ideia pro aumentado: substitui
+// "aug" como notação padrão de exibição, mas "aug" continua sendo aceito
+// como entrada.
+const CHORD_RE = /^([A-G])(#|b)?(maj7|maj9|mMaj7|m7\(b5\)|m7b5|dim7|º7|madd9|m7|m9|m6|dim|º|aug|\(#5\)|sus2|sus4|add9|7M|9|11|13|6|7|m)?(\/([A-G])(#|b)?)?$/;
 
 function noteIndex(letter, acc){ const base={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[letter]; return (base+(acc==='#'?1:acc==='b'?-1:0)+120)%12; }
 // Normaliza a "qualidade" que o regex capturou pra uma forma canônica única,
@@ -1156,6 +1178,7 @@ function canonQuality(q){
   if(q==='º7') return 'dim7';
   if(q==='º') return 'dim';
   if(q==='m7(b5)') return 'm7b5';
+  if(q==='(#5)') return 'aug';
   return q;
 }
 // Caminho inverso de canonQuality: a partir da qualidade canônica interna,
@@ -1168,6 +1191,7 @@ function qualityDisplay(q){
   if(q==='m7b5') return 'm7(b5)';
   if(q==='dim7') return 'º7';
   if(q==='dim') return 'º';
+  if(q==='aug') return '(#5)';
   if(q.indexOf('maj7')===0) return '7M'+q.slice(4);
   return q;
 }
@@ -1654,6 +1678,10 @@ function maxRecordBytes(){ return HAS_CLAUDE_STORAGE ? 4.7*1024*1024 : (HAS_IDB 
 const A_TEMPLATES = {
   '':      ['x',0,2,2,2,0], 'm':['x',0,2,2,1,0], '7':['x',0,2,0,2,0],
   'm7':    ['x',0,2,0,1,0], 'maj7':['x',0,2,1,2,0], 'sus4':['x',0,2,2,3,0],
+  // Acorde aumentado (A+), formato aberto x,0,3,2,2,1 — mesmo motivo do
+  // TEMPLATES['aug'] acima (rodada 30): sem isso, a variação "Formato A"
+  // caía no shape de A maior por engano.
+  'aug':   ['x',0,3,2,2,1],
 };
 // Suggests a plausible finger (1-4) per string from fret numbers alone: lowest fretted position
 // becomes finger 1, higher positions get 2/3/4 in order. Not authoritative sheet-music fingering,
@@ -1880,7 +1908,7 @@ let state = {
   recorderActive:false, recorderMediaRecorder:null, recordings:[],
   dictChordQuery:'',
   brachoTuningIdx:0, brachoFrets:12, brachoFlipH:false, brachoFlipV:false,
-  harmParentIdx:0, harmModeIdx:0, harmTom:0, harmShowAll:false,
+  harmParentIdx:0, harmModeIdx:0, harmTom:0, harmShowAll:false, harmChordType:'triade',
   metronomeBpm:90, metronomeRunning:false, metronomeBeat:0, metronomeBeatsPerBar:4, metronomeTimbre:'classico',
   metronomeBeatStates:['accent','normal','normal','normal'],
   earTraining:{mode:'note', current:null, answered:false, lastAnswer:null, score:{correct:0,total:0}},
@@ -4234,6 +4262,10 @@ function setHarmParent(idx){ state.harmParentIdx = parseInt(idx,10); state.harmM
 function setHarmMode(idx){ state.harmModeIdx = parseInt(idx,10); render(); }
 function setHarmTom(idx){ state.harmTom = parseInt(idx,10); render(); }
 function toggleHarmShowAll(){ state.harmShowAll = !state.harmShowAll; render(); }
+// Escolha entre mostrar só a tríade ou só a tétrade (acorde com sétima) de
+// cada grau — pedido do usuário em 14/09/2026 (rodada 30) pra deixar a
+// listagem "mais clean" (antes os dois nomes vinham sempre empilhados).
+function setHarmChordType(t){ state.harmChordType = t; render(); }
 // Calcula os 7 acordes do campo harmônico de um modo, num tom (rootSemi 0-11).
 // Gira o padrão de intervalos da escala principal ("pattern", sempre relativo
 // ao grau I dela) pra começar no grau do modo escolhido, empilha terças (graus
@@ -4294,15 +4326,18 @@ function harmComputeChords(parentIdx, modeIdx, rootSemi){
 function harmShowChord(name){
   showChordPopup(parseChord(name) ? name : name.replace(/\([^)]*\)/g, ''));
 }
-// Uma "coluna" por grau (numeral romano em cima, sem caixinha atrás, e os
-// dois nomes do acorde embaixo) — usado tanto lado a lado (só um tom) quanto,
-// mais compacto, dentro de cada linha da lista de "todos os tons".
+// Uma "coluna" por grau (numeral romano em cima, sem caixinha atrás, e o
+// nome do acorde embaixo) — usado tanto lado a lado (só um tom) quanto, mais
+// compacto, dentro de cada linha da lista de "todos os tons". Desde a rodada
+// 30 (14/09/2026) mostra só UM nome por vez — tríade ou tétrade, conforme o
+// toggle "Tríades/Tétrades" (state.harmChordType) — em vez dos dois
+// empilhados, a pedido do usuário, pra deixar a lista mais limpa.
 function harmChordColHtml(c){
+  const nome = state.harmChordType==='tetrade' ? c.setima : c.triade;
   return `
     <div class="harm-col">
       <div class="harm-degree">${escapeHtml(c.roman)}</div>
-      <span class="chord harm-chord-main" onclick="harmShowChord('${c.triade.replace(/'/g,"\\'")}')">${escapeHtml(c.triade)}</span>
-      <span class="chord harm-chord-7" onclick="harmShowChord('${c.setima.replace(/'/g,"\\'")}')">${escapeHtml(c.setima)}</span>
+      <span class="chord harm-chord-main" onclick="harmShowChord('${nome.replace(/'/g,"\\'")}')">${escapeHtml(nome)}</span>
     </div>`;
 }
 // Só um tom selecionado: os 7 graus lado a lado (pedido do usuário em
@@ -4314,7 +4349,8 @@ function harmChordColsHtml(chords){
 // "Ver todos os tons": agora sim uma lista de verdade (reaproveita
 // .cifra-list/.cifra-row, o mesmo padrão visual de repertório/materiais —
 // linhas com borda embaixo, sem "caixinha" ao redor), um tom por linha, com
-// os 7 graus daquele tom lado a lado (mais compactos) dentro da linha.
+// os 7 graus daquele tom lado a lado (mais compactos, esticando pra ocupar
+// toda a largura da linha — rodada 30) dentro da linha.
 function harmAllKeysHtml(parentIdx, modeIdx){
   return `<div class="cifra-list">${SHARP_NAMES.map((tomName,i)=>{
     const chords = harmComputeChords(parentIdx, modeIdx, i);
@@ -4361,11 +4397,18 @@ function renderToolHarmonicField(app, themeSwitch){
         </select>
       </div>`}
       <div class="piano-control-group">
+        <span class="rail-label">Acordes</span>
+        <div class="seg-toggle">
+          <button type="button" class="${state.harmChordType==='triade'?'active':''}" onclick="setHarmChordType('triade')">Tríades</button>
+          <button type="button" class="${state.harmChordType==='tetrade'?'active':''}" onclick="setHarmChordType('tetrade')">Tétrades</button>
+        </div>
+      </div>
+      <div class="piano-control-group">
         <span class="rail-label">&nbsp;</span>
-        <button type="button" class="rail-mini ${state.harmShowAll?'active':''}" style="width:auto;padding:0 14px;" onclick="toggleHarmShowAll()">Ver todos os tons</button>
+        <button type="button" class="${state.harmShowAll?'btn':'btn-ghost'} btn-small" onclick="toggleHarmShowAll()">Ver todos os tons</button>
       </div>
     </div>
-    <div style="max-width:900px;margin:0 auto;">
+    <div style="max-width:980px;margin:0 auto;">
       ${body}
     </div>
   `;
