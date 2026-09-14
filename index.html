@@ -234,6 +234,7 @@
   .tarefas-list.completed{opacity:.8;}
   .tools-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;}
   .tool-tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px;background:var(--bg-panel);border:none;border-radius:0;padding:30px 20px;cursor:pointer;font-family:'Montserrat',sans-serif;color:var(--text);text-align:center;overflow:hidden;}
+  .tool-tile[draggable="true"]{cursor:grab;}
   .tool-tile::after{content:'';position:absolute;inset:0;background:var(--accent);opacity:0;transition:opacity .5s;pointer-events:none;}
   .tool-tile:hover::after{opacity:.12;}
   .tool-tile-icon{display:flex;align-items:center;justify-content:center;width:84px;height:84px;color:var(--accent);}
@@ -870,19 +871,36 @@
   .aluno-row-clickable{cursor:pointer;border-radius:10px;transition:background .25s;}
   .aluno-avatar{border-radius:50%;overflow:hidden;font-size:12.5px;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;background:var(--pill-bg);color:var(--muted);flex-shrink:0;}
   .cifra-row-inactive{opacity:.55;}
-  /* Campo Harmônico — lista em estilo de tabela (reaproveita .cifra-list/
-     .cifra-row, o mesmo padrão de linhas com borda embaixo usado em
-     repertório/materiais), sem os "quadradões" dos cards de ferramenta que
-     a primeira versão usava. A linha em si não é clicável (por isso o
-     cursor/hover padrão de .cifra-row são desligados aqui) — só os nomes
-     dos acordes (tríade e com sétima) são, abrindo o mesmo popup de
-     diagrama usado nas cifras. Pedido do usuário em 14/09/2026. */
+  /* Campo Harmônico (ajustado em 14/09/2026 — rodada 29, depois do feedback
+     sobre a 1ª versão da rodada 28). Duas visões diferentes agora:
+     - Um tom só: os 7 graus lado a lado (.harm-cols), sem "quadradão" ao
+       redor de cada um — só uma "coluna" com o numeral do grau em cima e os
+       dois nomes do acorde embaixo.
+     - "Ver todos os tons": aí sim vira uma lista de verdade (reaproveita
+       .cifra-list/.cifra-row, o mesmo padrão de linhas com borda embaixo
+       usado em repertório/materiais), um tom por linha, com os 7 graus
+       daquele tom lado a lado (mais compactos) dentro da linha.
+     Em ambos os casos a linha/coluna em si não é clicável (cursor/hover
+     padrão de .cifra-row desligados) — só os nomes dos acordes são,
+     abrindo o mesmo popup de diagrama usado nas cifras. */
+  .harm-cols{display:flex;flex-wrap:wrap;justify-content:center;gap:22px 18px;}
+  .harm-col{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:64px;}
   .harm-chord-row{cursor:default;}
   .harm-chord-row:hover{background:none;}
-  .harm-degree{width:34px;height:34px;border-radius:8px;font-size:12.5px;font-weight:700;flex:0 0 auto;}
+  .harm-key-row{gap:18px;flex-wrap:wrap;row-gap:10px;}
+  .harm-key-label{font-weight:700;flex:0 0 auto;min-width:34px;}
+  .harm-cols-compact{gap:16px 14px;justify-content:flex-start;flex:1 1 auto;}
+  .harm-cols-compact .harm-col{min-width:0;}
+  /* Numeral do grau: sempre em caixa alta (feito em harmComputeChords), cor
+     laranjinha (--accent) e sem a caixinha/fundo que a 1ª versão tinha atrás
+     dele — pedido do usuário em 14/09/2026. */
+  .harm-degree{font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.02em;}
+  /* Os nomes dos acordes ficam na mesma cor do título da página (var(--text))
+     em vez da cor de destaque laranja padrão de .chord — pedido do usuário
+     em 14/09/2026 ("numa cor mais clara... na cor do título da página"). */
+  .harm-chord-main, .harm-chord-7{color:var(--text);}
   .harm-chord-main{font-size:16px;}
   .harm-chord-7{font-size:14px;}
-  .harm-key-group + .harm-key-group{margin-top:22px;}
   .avatar.aluno-avatar{border-radius:50%;overflow:hidden;}
   .aluno-avatar img{width:100%;height:100%;object-fit:cover;}
   .aluno-avatar-lg{width:64px;height:64px;font-size:20px;flex:0 0 auto;}
@@ -1119,16 +1137,47 @@ const OPEN_CHORDS = {
   "A":['x',0,2,2,2,0], "Am":['x',0,2,2,1,0], "A7":['x',0,2,0,2,0], "Amaj7":['x',0,2,1,2,0], "Am7":['x',0,2,0,1,0],
   "B7":['x',2,1,2,0,2],
 };
-const CHORD_RE = /^([A-G])(#|b)?(maj7|maj9|mMaj7|m7b5|dim7|madd9|m7|m9|m6|dim|aug|sus2|sus4|add9|7M|9|11|13|6|7|m)?(\/([A-G])(#|b)?)?$/;
+// "m7(b5)", "º7" e "º" (com parênteses/símbolo de grau) são a notação NOVA
+// (regras pedidas pelo usuário em 14/09/2026 — rodada 29: sétima maior sempre
+// "7M", meio-diminuto sempre "m7(b5)", diminuto sempre com "º"). "maj7",
+// "dim7" e "m7b5" continuam reconhecidas também, sem parênteses/símbolo, só
+// pra não invalidar cifras já digitadas antes dessa mudança — ver
+// canonQuality()/qualityDisplay() logo abaixo, que fazem a ponte entre as
+// duas grafias.
+const CHORD_RE = /^([A-G])(#|b)?(maj7|maj9|mMaj7|m7\(b5\)|m7b5|dim7|º7|madd9|m7|m9|m6|dim|º|aug|sus2|sus4|add9|7M|9|11|13|6|7|m)?(\/([A-G])(#|b)?)?$/;
 
 function noteIndex(letter, acc){ const base={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[letter]; return (base+(acc==='#'?1:acc==='b'?-1:0)+120)%12; }
+// Normaliza a "qualidade" que o regex capturou pra uma forma canônica única,
+// usada em todo o resto do app pra procurar diagramas (OPEN_CHORDS/TEMPLATES)
+// e nomes por extenso (QUALITY_PT) — assim tanto quem digitou "Cmaj7" quanto
+// quem digitou "C7M" caem no mesmo lugar internamente.
+function canonQuality(q){
+  if(q==='7M') return 'maj7';
+  if(q==='º7') return 'dim7';
+  if(q==='º') return 'dim';
+  if(q==='m7(b5)') return 'm7b5';
+  return q;
+}
+// Caminho inverso de canonQuality: a partir da qualidade canônica interna,
+// devolve o texto que deve aparecer pro usuário, já na notação nova (rodada
+// 29). Funciona tanto pra uma qualidade "pura" (ex: "maj7" -> "7M") quanto
+// composta, como as que o Campo Harmônico gera pra acordes alterados (ex:
+// "maj7(#5)" -> "7M(#5)") — daí o prefixo em vez de igualdade exata.
+function qualityDisplay(q){
+  if(!q) return q;
+  if(q==='m7b5') return 'm7(b5)';
+  if(q==='dim7') return 'º7';
+  if(q==='dim') return 'º';
+  if(q.indexOf('maj7')===0) return '7M'+q.slice(4);
+  return q;
+}
 function parseChord(raw){ if(!raw) return null; const tok=raw.replace(/[.,;:|]+$/,''); const m=CHORD_RE.exec(tok); if(!m) return null;
-  return {root:m[1], acc:m[2]||'', quality:m[3]||'', bassRoot:m[5]||null, bassAcc:m[6]||''}; }
+  return {root:m[1], acc:m[2]||'', quality:canonQuality(m[3]||''), bassRoot:m[5]||null, bassAcc:m[6]||''}; }
 function isChordLine(line){ const tokens=line.trim().split(/\s+/).filter(Boolean); if(tokens.length===0) return false;
   return tokens.filter(t=>parseChord(t)).length/tokens.length >= 0.6; }
 function isSectionLine(line){ return /^\s*[\[\(].*[\]\)]\s*$/.test(line) && line.trim().length>0; }
 function transposeToken(tok, semis, preferFlat){ const p=parseChord(tok); if(!p) return tok; const names=preferFlat?FLAT_NAMES:SHARP_NAMES;
-  let out=names[(noteIndex(p.root,p.acc)+semis+120)%12]+p.quality; if(p.bassRoot) out+='/'+names[(noteIndex(p.bassRoot,p.bassAcc)+semis+120)%12]; return out; }
+  let out=names[(noteIndex(p.root,p.acc)+semis+120)%12]+qualityDisplay(p.quality); if(p.bassRoot) out+='/'+names[(noteIndex(p.bassRoot,p.bassAcc)+semis+120)%12]; return out; }
 function transposeKeyName(keyName, semis, preferFlat){ const m=/^([A-G])(#|b)?(.*)$/.exec(keyName||'C'); if(!m) return keyName;
   const names=preferFlat?FLAT_NAMES:SHARP_NAMES; return names[(noteIndex(m[1],m[2]||'')+semis+120)%12]+(m[3]||''); }
 function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -1802,7 +1851,7 @@ function openVariantModalFromPopup(name){ state.chordPopup = null; openVariantMo
 let state = {
   loaded:false, theme:'dark', view:'perfil',
   session:null, loginError:null, loginEmailDraft:'', alunosAutorizados:[],
-  config:{logoLight:'', logoDark:'', accent:'', whatsapp:'', instagram:'', youtube:'', tiktok:'', facebook:'', x:'', backingTracksUrl:'', disabledTools:[], loginLayout:'padrao', loginImage:''},
+  config:{logoLight:'', logoDark:'', accent:'', whatsapp:'', instagram:'', youtube:'', tiktok:'', facebook:'', x:'', backingTracksUrl:'', disabledTools:[], toolOrder:[], loginLayout:'padrao', loginImage:''},
   professorTab:'alunos', professorStudentEmail:null, professorCadastroOpen:false, professorMode:null, showAlunosInativos:false,
   cadFotoPreview:null, detFotoPreview:null, toolContextMenu:null, itemContextMenu:null,
   materiaisIndex:[], materiaisDetailCache:{}, materialUploadOpen:false, matDraftTitulo:'', matDraftPdfData:null, matDraftPdfName:'', matDraftLoading:false,
@@ -3057,7 +3106,7 @@ function setMetronomeTimbre(v){ state.metronomeTimbre = v; }
 function renderToolMetronome(app, themeSwitch){
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${mainNavHtml()}
+    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Metrônomo</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -3241,7 +3290,7 @@ function updateTunerDisplay(freq){
 function renderToolTuner(app, themeSwitch){
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${mainNavHtml()}
+    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Afinador</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -3407,7 +3456,7 @@ function renderToolPiano(app, themeSwitch){
   }).join('');
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${mainNavHtml()}
+    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Piano Virtual</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -3539,7 +3588,7 @@ function renderToolDrums(app, themeSwitch){
   const seq = state.drumSeq;
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${mainNavHtml()}
+    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Bateria Virtual</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -3749,7 +3798,7 @@ function seekRecPlayer(ev, id){
 function renderToolRecorder(app, themeSwitch){
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${mainNavHtml()}
+    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Gravador</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -3789,7 +3838,7 @@ function renderToolRecorder(app, themeSwitch){
 }
 
 // ---- Dicionário de Acordes ----
-const COMMON_CHORDS = ['C','D','E','F','G','A','B','Am','Dm','Em','C7','G7','D7','A7','Cmaj7','Am7','Dm7','Gsus4'];
+const COMMON_CHORDS = ['C','D','E','F','G','A','B','Am','Dm','Em','C7','G7','D7','A7','C7M','Am7','Dm7','Gsus4'];
 function dictResultsHtml(){
   const q = (state.dictChordQuery||'').trim();
   if(!q) return '<p class="hint">Digite um acorde acima (ex: G, Am7, D/F#) ou escolha um dos comuns abaixo.</p>';
@@ -3916,7 +3965,7 @@ function detectChordFromFrets(frets){
       if(relative.length===f.length && relative.every((v,idx)=>v===f[idx])){
         const rootName = SHARP_NAMES[root];
         const isSlash = bassPc!==root;
-        const name = rootName + formula.suffix + (isSlash?('/'+SHARP_NAMES[bassPc]):'');
+        const name = rootName + qualityDisplay(formula.suffix) + (isSlash?('/'+SHARP_NAMES[bassPc]):'');
         const score = 20 - formula.intervals.length - (isSlash?2:0);
         if(!best || score>best.score) best = {name, score};
       }
@@ -3948,7 +3997,7 @@ function dictDrawPanelHtml(){
 function renderToolDict(app, themeSwitch){
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${mainNavHtml()}
+    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Dicionário de Acordes</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -4109,7 +4158,7 @@ function renderToolBracho(app, themeSwitch){
 
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${mainNavHtml()}
+    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Mapa do Braço</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -4148,7 +4197,7 @@ function renderToolBackingTracks(app, themeSwitch){
   const url = getBackingTracksUrl();
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${mainNavHtml()}
+    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Backing Tracks</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -4221,41 +4270,60 @@ function harmComputeChords(parentIdx, modeIdx, rootSemi){
     else if(triadeSuf==='aug') setimaSuf = setima===11?'maj7(#5)':setima===10?'7(#5)':'aug';
     else setimaSuf = '?';
     const noteName = SHARP_NAMES[(rootSemi+root)%12];
-    let roman = maiuscula ? ROMAN[i] : ROMAN[i].toLowerCase();
+    // O numeral romano do grau vem sempre em caixa alta agora (pedido do
+    // usuário em 14/09/2026 — antes ficava minúsculo pra graus menores, ex:
+    // "ii", "vii°" — a diferença maior/menor já aparece no próprio nome do
+    // acorde logo abaixo dele, então não precisa mais do caixa-baixa aqui).
+    let roman = ROMAN[i];
     if(dim) roman += '°'; if(aug) roman += '+';
-    chords.push({ roman, triade: noteName+triadeSuf, setima: noteName+setimaSuf });
+    chords.push({ roman, triade: noteName+qualityDisplay(triadeSuf), setima: noteName+qualityDisplay(setimaSuf) });
   }
   return chords;
 }
 // Abre o mesmo popup de diagrama de acorde usado nas cifras (showChordPopup,
-// ver dialogsHtml). Alguns acordes alterados que o campo harmônico consegue
-// nomear com precisão (ex: "Cmaj7(#5)", o acorde aumentado com sétima maior
-// que aparece no grau bIII da menor harmônica) usam uma notação entre
-// parênteses que o dicionário de acordes do app (parseChord/CHORD_RE) ainda
-// não reconhece — nesse caso a alteração é removida só para abrir o popup
-// (ex: vira "Cmaj7"), pra sempre mostrar um diagrama em vez de "acorde não
-// reconhecido"; o nome completo e correto continua exibido normalmente na
-// lista.
+// ver dialogsHtml). Desde a rodada 29 (14/09/2026) o texto que chega aqui já
+// vem na notação nova (ex: "Bm7(b5)", "D#7M", "Fº7") e o dicionário de
+// acordes (CHORD_RE/parseChord) já entende essas formas direto — então a
+// gente tenta reconhecer o nome exatamente como está primeiro. Só cai no
+// fallback de remover o que está entre parênteses pros poucos casos que o
+// Campo Harmônico consegue nomear com mais precisão do que o dicionário
+// entende (ex: "C7M(#5)", o acorde aumentado com sétima maior que aparece no
+// grau bIII da menor harmônica) — nesse caso vira "C7M" só pra abrir algum
+// diagrama em vez de "acorde não reconhecido"; o nome completo e correto
+// continua exibido normalmente na lista.
 function harmShowChord(name){
-  showChordPopup(name.replace(/\([^)]*\)/g, ''));
+  showChordPopup(parseChord(name) ? name : name.replace(/\([^)]*\)/g, ''));
 }
-// Lista em estilo de tabela (reaproveita .cifra-list/.cifra-row, o mesmo
-// padrão visual de repertório/materiais — linhas com borda embaixo, sem
-// "caixinha" ao redor) em vez dos cards de ferramenta da primeira versão.
-// Cada nome de acorde é clicável e abre o diagrama, igual acontece com os
-// acordes dentro de uma cifra.
-function harmChordRowsHtml(chords){
-  return `<div class="cifra-list">${chords.map(c=>`
-    <div class="cifra-row harm-chord-row">
-      <div class="avatar harm-degree">${escapeHtml(c.roman)}</div>
-      <div class="info">
-        <span class="chord harm-chord-main" onclick="harmShowChord('${c.triade.replace(/'/g,"\\'")}')">${escapeHtml(c.triade)}</span>
-      </div>
-      <div class="row-status">
-        <span class="chord harm-chord-7" onclick="harmShowChord('${c.setima.replace(/'/g,"\\'")}')">${escapeHtml(c.setima)}</span>
-      </div>
-    </div>
-  `).join('')}</div>`;
+// Uma "coluna" por grau (numeral romano em cima, sem caixinha atrás, e os
+// dois nomes do acorde embaixo) — usado tanto lado a lado (só um tom) quanto,
+// mais compacto, dentro de cada linha da lista de "todos os tons".
+function harmChordColHtml(c){
+  return `
+    <div class="harm-col">
+      <div class="harm-degree">${escapeHtml(c.roman)}</div>
+      <span class="chord harm-chord-main" onclick="harmShowChord('${c.triade.replace(/'/g,"\\'")}')">${escapeHtml(c.triade)}</span>
+      <span class="chord harm-chord-7" onclick="harmShowChord('${c.setima.replace(/'/g,"\\'")}')">${escapeHtml(c.setima)}</span>
+    </div>`;
+}
+// Só um tom selecionado: os 7 graus lado a lado (pedido do usuário em
+// 14/09/2026 — a primeira versão sempre listava em coluna, o que só faz
+// sentido mesmo pra "ver todos os tons" de uma vez, ver harmAllKeysHtml).
+function harmChordColsHtml(chords){
+  return `<div class="harm-cols">${chords.map(harmChordColHtml).join('')}</div>`;
+}
+// "Ver todos os tons": agora sim uma lista de verdade (reaproveita
+// .cifra-list/.cifra-row, o mesmo padrão visual de repertório/materiais —
+// linhas com borda embaixo, sem "caixinha" ao redor), um tom por linha, com
+// os 7 graus daquele tom lado a lado (mais compactos) dentro da linha.
+function harmAllKeysHtml(parentIdx, modeIdx){
+  return `<div class="cifra-list">${SHARP_NAMES.map((tomName,i)=>{
+    const chords = harmComputeChords(parentIdx, modeIdx, i);
+    return `
+    <div class="cifra-row harm-chord-row harm-key-row">
+      <div class="harm-key-label">${escapeHtml(tomName)}</div>
+      <div class="harm-cols harm-cols-compact">${chords.map(harmChordColHtml).join('')}</div>
+    </div>`;
+  }).join('')}</div>`;
 }
 // ---- Campo Harmônico (o aluno escolhe escala principal + modo + tom, e vê os
 // 7 acordes gerados; opção de ver todos os 12 tons de uma vez) — pedido do
@@ -4263,22 +4331,12 @@ function harmChordRowsHtml(chords){
 function renderToolHarmonicField(app, themeSwitch){
   const parentIdx = state.harmParentIdx, modeIdx = state.harmModeIdx, tom = state.harmTom;
   const parent = HARM_PARENTS[parentIdx];
-  let body;
-  if(state.harmShowAll){
-    body = SHARP_NAMES.map((tomName,i)=>{
-      const chords = harmComputeChords(parentIdx, modeIdx, i);
-      return `<div class="harm-key-group">
-        <div class="rail-label" style="margin-bottom:6px;">${escapeHtml(tomName)} ${escapeHtml(parent.modes[modeIdx])}</div>
-        ${harmChordRowsHtml(chords)}
-      </div>`;
-    }).join('');
-  } else {
-    const chords = harmComputeChords(parentIdx, modeIdx, tom);
-    body = harmChordRowsHtml(chords);
-  }
+  const body = state.harmShowAll
+    ? harmAllKeysHtml(parentIdx, modeIdx)
+    : harmChordColsHtml(harmComputeChords(parentIdx, modeIdx, tom));
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${mainNavHtml()}
+    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Campo Harmônico</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -4449,7 +4507,7 @@ function renderToolEarTraining(app, themeSwitch){
   const c = et.current;
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${mainNavHtml()}
+    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Treine seu Ouvido</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -4509,6 +4567,16 @@ function getNavItems(){
     {key:'ferramentas', label:'Ferramentas', icon:NAV_ICON_FERRAMENTAS},
   ];
 }
+// Verdadeiro quando o professor está navegando "sem simular nenhum aluno"
+// (professorMode existe mas professorMode.email é null — ver comentários em
+// updateProfessorBanner). Repertório/Materiais/Tarefas/a grade de Ferramentas
+// já trocavam o menu de abas pra professorNavHtml() nesse caso; as páginas de
+// cada ferramenta individual (Campo Harmônico, Afinador, Piano etc.) tinham
+// ficado de fora dessa troca — o professor clicava numa ferramenta direto da
+// Área do Professor e via o menu do ALUNO aparecer ali, como se tivesse
+// "entrado" na visão de um aluno. Corrigido em 14/09/2026 (rodada 29): agora
+// essas páginas também usam essa função pra decidir qual menu mostrar.
+function professorIsInAdminMode(){ return !!(state.professorMode && !state.professorMode.email); }
 function mainNavHtml(){
   return `<div class="main-nav no-print">${getNavItems().map(it=>`<button class="main-nav-btn ${state.view===it.key?'active':''}" onclick="navigateTo('${it.key}')"><span class="main-nav-icon">${it.icon}</span>${it.label}</button>`).join('')}</div>`;
 }
@@ -5044,7 +5112,7 @@ async function saveSendModal(){
 // ---- Stage 2: configurações da escola viram uma linha única (id=1) compartilhada
 // na tabela public.config_escola, em vez de um storage key local por aparelho.
 async function loadConfigEscola(){
-  const defaults = {logoLight:'', logoDark:'', accent:'', whatsapp:'', instagram:'', youtube:'', tiktok:'', facebook:'', x:'', disabledTools:[], loginLayout:'padrao', loginImage:''};
+  const defaults = {logoLight:'', logoDark:'', accent:'', whatsapp:'', instagram:'', youtube:'', tiktok:'', facebook:'', x:'', disabledTools:[], toolOrder:[], loginLayout:'padrao', loginImage:''};
   if(!sb){ state.config = defaults; return; }
   try{
     const { data, error } = await sb.from('config_escola').select('dados').eq('id', 1).maybeSingle();
@@ -5203,7 +5271,7 @@ function professorMateriaisTabHtml(){
           <button class="row-ear" title="Excluir" onclick="deleteMaterial('${m.id}', event)">✕</button>
         </div>
       </div>`;
-    }).join('')}</div>`:`<p class="hint">${state.materiaisIndex.length===0?'Nenhum material enviado ainda.':'Nenhum material encontrado com esse filtro.'}</p>`}
+    }).join('')}</div>`:`<div class="empty"><span class="big">${ICON_FILE_BIG}</span>${state.materiaisIndex.length===0?'Nenhum material enviado ainda. Clique em "Enviar material" para começar.':'Nenhum material encontrado com esse filtro.'}</div>`}
     ${state.materialUploadOpen?materialUploadModalHtml():''}
   `;
 }
@@ -5289,32 +5357,81 @@ function professorSolosTabHtml(){
       </div>`).join('')}
   `;
 }
+// Catálogo único das ferramentas (pedido do usuário em 14/09/2026 — rodada 29:
+// antes existiam duas listas hardcoded e idênticas em espírito — uma pro grid
+// que o aluno vê, outra pro atalho de dentro da Área do Professor — e cada uma
+// precisava ser editada à parte. Agora as duas são geradas a partir daqui, e é
+// esse catálogo (mais a ordem salva em state.config.toolOrder) que define tanto
+// a lista quanto a ordem em qualquer lugar que mostre ferramentas.
+const TOOLS_CATALOG = [
+  {key:'tool-tuner', label:'Afinador', icon:TOOL_ICON_TUNER},
+  {key:'tool-metronome', label:'Metrônomo', icon:TOOL_ICON_METRONOME},
+  {key:'tool-piano', label:'Piano Virtual', icon:TOOL_ICON_PIANO},
+  {key:'tool-drums', label:'Bateria Virtual', icon:TOOL_ICON_DRUMS},
+  {key:'tool-diagrams', label:'Diagramas em Branco', icon:TOOL_ICON_DIAGRAM, download:'downloadBlankDiagramsPdf'},
+  {key:'tool-tabs', label:'Tablatura em Branco', icon:TOOL_ICON_TAB, download:'downloadBlankTabPdf'},
+  {key:'tool-recorder', label:'Gravador', icon:TOOL_ICON_RECORDER},
+  {key:'tool-dict', label:'Dicionário de Acordes', icon:TOOL_ICON_DICT},
+  {key:'tool-bracho', label:'Mapa do Braço', icon:TOOL_ICON_BRACHO},
+  {key:'tool-ear', label:'Treine seu Ouvido', icon:TOOL_ICON_EAR},
+  {key:'tool-backing', label:'Backing Tracks', icon:TOOL_ICON_BACKING},
+  {key:'tool-harm', label:'Campo Harmônico', icon:TOOL_ICON_HARM},
+];
+// Ordem customizada pelo professor (arrastar e soltar na Área do Professor >
+// Ferramentas), salva em state.config.toolOrder — mesmo lugar (config_escola,
+// via saveConfigEscola) onde já mora disabledTools, então já sincroniza de
+// verdade entre professor e alunos, em qualquer dispositivo, igual pedido
+// (parecido com reordenar ícones de app no celular: só o professor arrasta,
+// o aluno só vê o resultado). Ferramentas que ainda não estão na lista salva
+// (ex: uma nova, adicionada depois da última vez que o professor reordenou)
+// entram no fim, na ordem em que aparecem no catálogo.
+function orderedToolsCatalog(){
+  const order = (state.config && state.config.toolOrder) || [];
+  if(!order.length) return TOOLS_CATALOG.slice();
+  const byKey = new Map(TOOLS_CATALOG.map(t=>[t.key,t]));
+  const ordered = order.map(k=>byKey.get(k)).filter(Boolean);
+  TOOLS_CATALOG.forEach(t=>{ if(!order.includes(t.key)) ordered.push(t); });
+  return ordered;
+}
+function toolAction(t, forProfessorShortcut){
+  if(t.download) return `${t.download}()`;
+  return forProfessorShortcut ? `professorGoTool('${t.key}')` : `navigateTo('${t.key}')`;
+}
+// Drag-and-drop nativo (HTML5) pra reordenar — só usado no grid da Área do
+// Professor (professorFerramentasTabHtml); o grid do aluno não recebe os
+// atributos draggable/ondrag*, então ele não consegue reordenar por lá.
+let dragToolKey = null;
+function toolDragStart(ev, key){ dragToolKey = key; if(ev.dataTransfer){ ev.dataTransfer.effectAllowed = 'move'; } }
+function toolDragOver(ev){ ev.preventDefault(); if(ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'; }
+async function toolDrop(ev, targetKey){
+  ev.preventDefault();
+  const draggedKey = dragToolKey; dragToolKey = null;
+  if(!draggedKey || draggedKey===targetKey) return;
+  const order = orderedToolsCatalog().map(t=>t.key);
+  const from = order.indexOf(draggedKey), to = order.indexOf(targetKey);
+  if(from<0 || to<0) return;
+  order.splice(from,1);
+  order.splice(to,0,draggedKey);
+  state.config = state.config || {};
+  state.config.toolOrder = order;
+  render();
+  await saveConfigEscola();
+}
 function professorFerramentasTabHtml(){
-  const tools = [
-    {key:'tool-tuner', label:'Afinador', icon:TOOL_ICON_TUNER, action:`professorGoTool('tool-tuner')`},
-    {key:'tool-metronome', label:'Metrônomo', icon:TOOL_ICON_METRONOME, action:`professorGoTool('tool-metronome')`},
-    {key:'tool-piano', label:'Piano Virtual', icon:TOOL_ICON_PIANO, action:`professorGoTool('tool-piano')`},
-    {key:'tool-drums', label:'Bateria Virtual', icon:TOOL_ICON_DRUMS, action:`professorGoTool('tool-drums')`},
-    {key:'tool-diagrams', label:'Diagramas em Branco', icon:TOOL_ICON_DIAGRAM, action:`downloadBlankDiagramsPdf()`},
-    {key:'tool-tabs', label:'Tablatura em Branco', icon:TOOL_ICON_TAB, action:`downloadBlankTabPdf()`},
-    {key:'tool-recorder', label:'Gravador', icon:TOOL_ICON_RECORDER, action:`professorGoTool('tool-recorder')`},
-    {key:'tool-dict', label:'Dicionário de Acordes', icon:TOOL_ICON_DICT, action:`professorGoTool('tool-dict')`},
-    {key:'tool-bracho', label:'Mapa do Braço', icon:TOOL_ICON_BRACHO, action:`professorGoTool('tool-bracho')`},
-    {key:'tool-ear', label:'Treine seu Ouvido', icon:TOOL_ICON_EAR, action:`professorGoTool('tool-ear')`},
-    {key:'tool-backing', label:'Backing Tracks', icon:TOOL_ICON_BACKING, action:`professorGoTool('tool-backing')`},
-    {key:'tool-harm', label:'Campo Harmônico', icon:TOOL_ICON_HARM, action:`professorGoTool('tool-harm')`},
-  ];
+  const tools = orderedToolsCatalog().map(t=>({...t, action: toolAction(t, true)}));
   const disabled = (state.config && state.config.disabledTools) || [];
   return `
     <div class="page-header-row" style="margin-top:0;">
       <h3 style="margin:0;">Ferramentas</h3>
     </div>
     <div class="hint" style="margin-bottom:14px;">Clique com o botão direito em uma ferramenta para ativar ou desativar o acesso a ela. Aqui a alteração vale para todos os alunos de uma vez. Para desativar uma ferramenta só para um aluno específico, entre no perfil dele e ajuste por lá, na aba Ferramentas.</div>
+    <div class="hint" style="margin-bottom:14px;">Arraste uma ferramenta para reordenar — a ordem escolhida aqui é a mesma que os alunos veem na tela deles.</div>
     <div class="tools-grid">
       ${tools.map(t=>{
         const isOff = disabled.includes(t.key);
         return `
-        <button type="button" class="tool-tile ${isOff?'tool-tile-off':''}" onclick="${t.action}" oncontextmenu="openToolContextMenu(event,'${t.key}')">
+        <button type="button" class="tool-tile ${isOff?'tool-tile-off':''}" onclick="${t.action}" oncontextmenu="openToolContextMenu(event,'${t.key}')"
+          draggable="true" ondragstart="toolDragStart(event,'${t.key}')" ondragover="toolDragOver(event)" ondrop="toolDrop(event,'${t.key}')">
           ${isOff?'<span class="tool-tile-off-badge">Desativada</span>':''}
           <span class="tool-tile-icon">${t.icon}</span>
           <span class="tool-tile-label">${t.label}</span>
@@ -6482,6 +6599,14 @@ const ICON_CHECK_CIRCLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentC
 const PIN_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M14.5 2.5a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4l-1.1 1.1a1 1 0 0 1-1.4 0l-.4-.4-3.3 3.3.6 2.9a1 1 0 0 1-.27.93l-1.1 1.1a1 1 0 0 1-1.42 0l-3.5-3.5-5 5a1 1 0 0 1-1.42-1.42l5-5-3.5-3.5a1 1 0 0 1 0-1.42l1.1-1.1a1 1 0 0 1 .93-.27l2.9.6 3.3-3.3-.4-.4a1 1 0 0 1 0-1.4Z"/></svg>';
 const PIN_OUTLINE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2.5a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4l-1.1 1.1a1 1 0 0 1-1.4 0l-.4-.4-3.3 3.3.6 2.9a1 1 0 0 1-.27.93l-1.1 1.1a1 1 0 0 1-1.42 0l-3.5-3.5-5 5a1 1 0 0 1-1.42-1.42l5-5-3.5-3.5a1 1 0 0 1 0-1.42l1.1-1.1a1 1 0 0 1 .93-.27l2.9.6 3.3-3.3-.4-.4a1 1 0 0 1 0-1.4Z"/></svg>';
 const ICON_FILE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline;width:15px;height:15px;vertical-align:-3px;"><path d="M6 2.5h8l4 4v15h-12z"/><polyline points="14 2.5 14 6.5 18 6.5"/></svg>';
+// Mesmo ícone de ICON_FILE, mas sem o style inline de tamanho pequeno (15px,
+// pensado pra ficar ao lado de texto em botões/linhas) — esse style inline
+// vencia o CSS `.empty .big svg{width:34px;height:34px;}` (estilo inline tem
+// prioridade sobre classe), deixando o ícone da tela "sem nada ainda" de
+// Materiais visivelmente menor e deslocado (por causa do vertical-align:-3px)
+// comparado ao de Repertório/Solos. Usado só no estado vazio de Materiais —
+// pedido do usuário em 14/09/2026 (rodada 29) pra padronizar com Solos.
+const ICON_FILE_BIG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8l4 4v15h-12z"/><polyline points="14 2.5 14 6.5 18 6.5"/></svg>';
 const ICON_HOURGLASS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline;width:15px;height:15px;vertical-align:-3px;"><path d="M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9"/></svg>';
 const ICON_BUG_SMALL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:inline;width:14px;height:14px;vertical-align:-3px;"><rect x="8" y="7" width="8" height="11" rx="4"/><line x1="12" y1="4" x2="12" y2="7"/><line x1="4" y1="10" x2="8" y2="10"/><line x1="4" y1="14" x2="8" y2="14"/><line x1="16" y1="10" x2="20" y2="10"/><line x1="16" y1="14" x2="20" y2="14"/></svg>';
 const ICON_TOM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>';
@@ -7324,7 +7449,7 @@ function renderApp(){
         </div>
       </div>
       <div class="hint" style="margin:-6px 0 14px;">PDFs enviados pelo seu professor. Clique para abrir.</div>
-      ${visiveis.length===0?`<div class="empty"><span class="big">${ICON_FILE}</span>${state.materiaisIndex.length===0?'Nenhum material disponível ainda.':'Nenhum material encontrado com esse filtro.'}</div>`:
+      ${visiveis.length===0?`<div class="empty"><span class="big">${ICON_FILE_BIG}</span>${state.materiaisIndex.length===0?'Nenhum material disponível ainda.':'Nenhum material encontrado com esse filtro.'}</div>`:
       `<div class="cifra-list">${visiveis.map(m=>`
         <div class="cifra-row" onclick="openMaterialViewer('${m.id}')">
           <div class="avatar">${ICON_FILE}</div>
@@ -7472,20 +7597,7 @@ function renderApp(){
   }
 
   if(state.view==='ferramentas'){
-    const tools = [
-      {key:'tool-tuner', label:'Afinador', icon:TOOL_ICON_TUNER, action:`navigateTo('tool-tuner')`},
-      {key:'tool-metronome', label:'Metrônomo', icon:TOOL_ICON_METRONOME, action:`navigateTo('tool-metronome')`},
-      {key:'tool-piano', label:'Piano Virtual', icon:TOOL_ICON_PIANO, action:`navigateTo('tool-piano')`},
-      {key:'tool-drums', label:'Bateria Virtual', icon:TOOL_ICON_DRUMS, action:`navigateTo('tool-drums')`},
-      {key:'tool-diagrams', label:'Diagramas em Branco', icon:TOOL_ICON_DIAGRAM, action:`downloadBlankDiagramsPdf()`},
-      {key:'tool-tabs', label:'Tablatura em Branco', icon:TOOL_ICON_TAB, action:`downloadBlankTabPdf()`},
-      {key:'tool-recorder', label:'Gravador', icon:TOOL_ICON_RECORDER, action:`navigateTo('tool-recorder')`},
-      {key:'tool-dict', label:'Dicionário de Acordes', icon:TOOL_ICON_DICT, action:`navigateTo('tool-dict')`},
-      {key:'tool-bracho', label:'Mapa do Braço', icon:TOOL_ICON_BRACHO, action:`navigateTo('tool-bracho')`},
-      {key:'tool-ear', label:'Treine seu Ouvido', icon:TOOL_ICON_EAR, action:`navigateTo('tool-ear')`},
-      {key:'tool-backing', label:'Backing Tracks', icon:TOOL_ICON_BACKING, action:`navigateTo('tool-backing')`},
-      {key:'tool-harm', label:'Campo Harmônico', icon:TOOL_ICON_HARM, action:`navigateTo('tool-harm')`},
-    ];
+    const tools = orderedToolsCatalog().map(t=>({...t, action: toolAction(t, false)}));
     const emailCtx = (state.professorMode && state.professorMode.email) || (state.session && state.session.email) || null;
     const globalDisabled = (state.config && state.config.disabledTools) || [];
     const personalDisabled = getPersonalDisabledTools(emailCtx);
