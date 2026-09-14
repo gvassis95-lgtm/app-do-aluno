@@ -3106,7 +3106,7 @@ function setMetronomeTimbre(v){ state.metronomeTimbre = v; }
 function renderToolMetronome(app, themeSwitch){
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
+    ${professorIsInAdminMode()?professorToolNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Metrônomo</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -3290,7 +3290,7 @@ function updateTunerDisplay(freq){
 function renderToolTuner(app, themeSwitch){
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
+    ${professorIsInAdminMode()?professorToolNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Afinador</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -3456,7 +3456,7 @@ function renderToolPiano(app, themeSwitch){
   }).join('');
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
+    ${professorIsInAdminMode()?professorToolNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Piano Virtual</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -3588,7 +3588,7 @@ function renderToolDrums(app, themeSwitch){
   const seq = state.drumSeq;
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
+    ${professorIsInAdminMode()?professorToolNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Bateria Virtual</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -3798,7 +3798,7 @@ function seekRecPlayer(ev, id){
 function renderToolRecorder(app, themeSwitch){
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
+    ${professorIsInAdminMode()?professorToolNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Gravador</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -3997,7 +3997,7 @@ function dictDrawPanelHtml(){
 function renderToolDict(app, themeSwitch){
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
+    ${professorIsInAdminMode()?professorToolNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Dicionário de Acordes</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -4158,7 +4158,7 @@ function renderToolBracho(app, themeSwitch){
 
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
+    ${professorIsInAdminMode()?professorToolNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Mapa do Braço</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -4197,7 +4197,7 @@ function renderToolBackingTracks(app, themeSwitch){
   const url = getBackingTracksUrl();
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
+    ${professorIsInAdminMode()?professorToolNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Backing Tracks</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -4336,7 +4336,7 @@ function renderToolHarmonicField(app, themeSwitch){
     : harmChordColsHtml(harmComputeChords(parentIdx, modeIdx, tom));
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
+    ${professorIsInAdminMode()?professorToolNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Campo Harmônico</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -4507,7 +4507,7 @@ function renderToolEarTraining(app, themeSwitch){
   const c = et.current;
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
-    ${professorIsInAdminMode()?professorNavHtml():mainNavHtml()}
+    ${professorIsInAdminMode()?professorToolNavHtml():mainNavHtml()}
     <div class="tool-page-header">
       <h2 style="margin:0;">Treine seu Ouvido</h2>
       <a class="tool-back" onclick="navigateTo('ferramentas')">&larr; Ferramentas</a>
@@ -4577,6 +4577,25 @@ function getNavItems(){
 // "entrado" na visão de um aluno. Corrigido em 14/09/2026 (rodada 29): agora
 // essas páginas também usam essa função pra decidir qual menu mostrar.
 function professorIsInAdminMode(){ return !!(state.professorMode && !state.professorMode.email); }
+// Nav de abas do professor pras páginas de ferramenta individuais — parecida
+// com professorNavHtml, mas cada aba PRECISA voltar de verdade pra Área do
+// Professor (mudar state.view), porque professorNavHtml (usada em repertório/
+// materiais/tarefas) só troca a aba ativa dentro da MESMA tela, sem mexer em
+// state.view — o que, numa página de ferramenta (view='tool-x'), faz o clique
+// destacar a aba mas não navegar pra lugar nenhum. Bug pego ao vivo em
+// 14/09/2026, testando a rodada 29, logo depois de trocar o menu dessas
+// páginas pra professorNavHtml.
+function professorToolNavHtml(){
+  const tabs = getProfessorTabItems().filter(t=>t.key!=='config');
+  return `<div class="main-nav no-print">${tabs.map(t=>{
+    const active = state.professorTab===t.key;
+    return `<button class="main-nav-btn ${active?'active':''}" onclick="goToProfessorTab('${t.key}')"><span class="main-nav-icon">${t.icon}</span>${escapeHtml(t.label)}</button>`;
+  }).join('')}</div>`;
+}
+function goToProfessorTab(tab){
+  state.view = 'professorArea';
+  setProfessorTab(tab);
+}
 function mainNavHtml(){
   return `<div class="main-nav no-print">${getNavItems().map(it=>`<button class="main-nav-btn ${state.view===it.key?'active':''}" onclick="navigateTo('${it.key}')"><span class="main-nav-icon">${it.icon}</span>${it.label}</button>`).join('')}</div>`;
 }
