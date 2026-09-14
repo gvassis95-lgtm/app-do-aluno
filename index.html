@@ -870,6 +870,19 @@
   .aluno-row-clickable{cursor:pointer;border-radius:10px;transition:background .25s;}
   .aluno-avatar{border-radius:50%;overflow:hidden;font-size:12.5px;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;background:var(--pill-bg);color:var(--muted);flex-shrink:0;}
   .cifra-row-inactive{opacity:.55;}
+  /* Campo Harmônico — lista em estilo de tabela (reaproveita .cifra-list/
+     .cifra-row, o mesmo padrão de linhas com borda embaixo usado em
+     repertório/materiais), sem os "quadradões" dos cards de ferramenta que
+     a primeira versão usava. A linha em si não é clicável (por isso o
+     cursor/hover padrão de .cifra-row são desligados aqui) — só os nomes
+     dos acordes (tríade e com sétima) são, abrindo o mesmo popup de
+     diagrama usado nas cifras. Pedido do usuário em 14/09/2026. */
+  .harm-chord-row{cursor:default;}
+  .harm-chord-row:hover{background:none;}
+  .harm-degree{width:34px;height:34px;border-radius:8px;font-size:12.5px;font-weight:700;flex:0 0 auto;}
+  .harm-chord-main{font-size:16px;}
+  .harm-chord-7{font-size:14px;}
+  .harm-key-group + .harm-key-group{margin-top:22px;}
   .avatar.aluno-avatar{border-radius:50%;overflow:hidden;}
   .aluno-avatar img{width:100%;height:100%;object-fit:cover;}
   .aluno-avatar-lg{width:64px;height:64px;font-size:20px;flex:0 0 auto;}
@@ -4155,6 +4168,14 @@ function renderToolBackingTracks(app, themeSwitch){
 const HARM_PARENTS = [
   { name:'Maior', pattern:[0,2,4,5,7,9,11],
     modes:['Jônico (Maior)','Dórico','Frígio','Lídio','Mixolídio','Eólio (Menor Natural)','Lócrio'] },
+  // Menor Natural (Eólio) já é coberto pelo modo "Eólio" da escala Maior acima
+  // (mesmas notas, mesmo campo harmônico) — mas o usuário pediu pra ela
+  // aparecer como opção própria, direto no seletor de Escala, sem precisar
+  // "descobrir" que Eólio = menor natural. Como só existe um jeito de tocar
+  // essa escala (não tem outros "modos" dela mesma), a lista de modos tem só
+  // 1 item — renderToolHarmonicField esconde o seletor de Modo nesse caso.
+  { name:'Menor Natural', pattern:[0,2,3,5,7,8,10],
+    modes:['Menor Natural'] },
   { name:'Menor Harmônica', pattern:[0,2,3,5,7,8,11],
     modes:['Menor Harmônica','Lócrio ♮6','Jônico ♯5','Dórico ♯4','Frígio Dominante','Lídio ♯2','Superlócrio ♭♭7'] },
   { name:'Menor Melódica', pattern:[0,2,3,5,7,9,11],
@@ -4196,7 +4217,7 @@ function harmComputeChords(parentIdx, modeIdx, rootSemi){
     let setimaSuf;
     if(triadeSuf==='') setimaSuf = setima===11?'maj7':setima===10?'7':'';
     else if(triadeSuf==='m') setimaSuf = setima===10?'m7':setima===11?'mMaj7':'m';
-    else if(triadeSuf==='dim') setimaSuf = setima===10?'m7(b5)':setima===9?'dim7':'dim';
+    else if(triadeSuf==='dim') setimaSuf = setima===10?'m7b5':setima===9?'dim7':'dim';
     else if(triadeSuf==='aug') setimaSuf = setima===11?'maj7(#5)':setima===10?'7(#5)':'aug';
     else setimaSuf = '?';
     const noteName = SHARP_NAMES[(rootSemi+root)%12];
@@ -4206,14 +4227,35 @@ function harmComputeChords(parentIdx, modeIdx, rootSemi){
   }
   return chords;
 }
-function harmChordCardsHtml(chords){
-  return chords.map(c=>`
-    <div class="tool-card" style="padding:14px 8px;text-align:center;min-width:84px;flex:1;">
-      <div class="hint" style="font-size:11px;margin-bottom:4px;">${c.roman}</div>
-      <div style="font-size:18px;font-weight:700;">${escapeHtml(c.triade)}</div>
-      <div class="hint" style="font-size:12px;margin-top:2px;">${escapeHtml(c.setima)}</div>
+// Abre o mesmo popup de diagrama de acorde usado nas cifras (showChordPopup,
+// ver dialogsHtml). Alguns acordes alterados que o campo harmônico consegue
+// nomear com precisão (ex: "Cmaj7(#5)", o acorde aumentado com sétima maior
+// que aparece no grau bIII da menor harmônica) usam uma notação entre
+// parênteses que o dicionário de acordes do app (parseChord/CHORD_RE) ainda
+// não reconhece — nesse caso a alteração é removida só para abrir o popup
+// (ex: vira "Cmaj7"), pra sempre mostrar um diagrama em vez de "acorde não
+// reconhecido"; o nome completo e correto continua exibido normalmente na
+// lista.
+function harmShowChord(name){
+  showChordPopup(name.replace(/\([^)]*\)/g, ''));
+}
+// Lista em estilo de tabela (reaproveita .cifra-list/.cifra-row, o mesmo
+// padrão visual de repertório/materiais — linhas com borda embaixo, sem
+// "caixinha" ao redor) em vez dos cards de ferramenta da primeira versão.
+// Cada nome de acorde é clicável e abre o diagrama, igual acontece com os
+// acordes dentro de uma cifra.
+function harmChordRowsHtml(chords){
+  return `<div class="cifra-list">${chords.map(c=>`
+    <div class="cifra-row harm-chord-row">
+      <div class="avatar harm-degree">${escapeHtml(c.roman)}</div>
+      <div class="info">
+        <span class="chord harm-chord-main" onclick="harmShowChord('${c.triade.replace(/'/g,"\\'")}')">${escapeHtml(c.triade)}</span>
+      </div>
+      <div class="row-status">
+        <span class="chord harm-chord-7" onclick="harmShowChord('${c.setima.replace(/'/g,"\\'")}')">${escapeHtml(c.setima)}</span>
+      </div>
     </div>
-  `).join('');
+  `).join('')}</div>`;
 }
 // ---- Campo Harmônico (o aluno escolhe escala principal + modo + tom, e vê os
 // 7 acordes gerados; opção de ver todos os 12 tons de uma vez) — pedido do
@@ -4223,18 +4265,16 @@ function renderToolHarmonicField(app, themeSwitch){
   const parent = HARM_PARENTS[parentIdx];
   let body;
   if(state.harmShowAll){
-    body = `<div style="display:flex;flex-direction:column;gap:14px;">
-      ${SHARP_NAMES.map((tomName,i)=>{
-        const chords = harmComputeChords(parentIdx, modeIdx, i);
-        return `<div>
-          <div class="rail-label" style="margin-bottom:6px;">${escapeHtml(tomName)} ${escapeHtml(parent.modes[modeIdx])}</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">${harmChordCardsHtml(chords)}</div>
-        </div>`;
-      }).join('')}
-    </div>`;
+    body = SHARP_NAMES.map((tomName,i)=>{
+      const chords = harmComputeChords(parentIdx, modeIdx, i);
+      return `<div class="harm-key-group">
+        <div class="rail-label" style="margin-bottom:6px;">${escapeHtml(tomName)} ${escapeHtml(parent.modes[modeIdx])}</div>
+        ${harmChordRowsHtml(chords)}
+      </div>`;
+    }).join('');
   } else {
     const chords = harmComputeChords(parentIdx, modeIdx, tom);
-    body = `<div style="display:flex;gap:10px;flex-wrap:wrap;">${harmChordCardsHtml(chords)}</div>`;
+    body = harmChordRowsHtml(chords);
   }
   app.innerHTML = `
     <div class="topbar">${brandHtml(false)}${themeSwitch}</div>
@@ -4250,12 +4290,12 @@ function renderToolHarmonicField(app, themeSwitch){
           ${HARM_PARENTS.map((p,i)=>`<option value="${i}" ${i===parentIdx?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}
         </select>
       </div>
-      <div class="piano-control-group">
+      ${parent.modes.length>1?`<div class="piano-control-group">
         <span class="rail-label">Modo</span>
         <select onchange="setHarmMode(this.value)">
           ${parent.modes.map((m,i)=>`<option value="${i}" ${i===modeIdx?'selected':''}>${escapeHtml(m)}</option>`).join('')}
         </select>
-      </div>
+      </div>`:''}
       ${state.harmShowAll?'':`<div class="piano-control-group">
         <span class="rail-label">Tom</span>
         <select onchange="setHarmTom(this.value)">
