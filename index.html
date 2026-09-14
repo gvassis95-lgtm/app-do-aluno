@@ -659,8 +659,9 @@
   .profile-list-card h4{margin:0 0 12px;font-size:16px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--muted);}
   .profile-avatar{display:flex;justify-content:center;}
   .avatar-img{border-radius:50%;object-fit:cover;display:block;box-shadow:0 3px 10px rgba(0,0,0,.25);}
-  .avatar-preset-wrap{border-radius:50%;overflow:hidden;display:flex;box-shadow:0 3px 10px rgba(0,0,0,.25);}
-  .avatar-preset-wrap svg{border-radius:50%;}
+  .avatar-fallback-wrap{border-radius:50%;overflow:hidden;display:flex;box-shadow:0 3px 10px rgba(0,0,0,.25);}
+  .avatar-fallback-wrap svg{border-radius:50%;}
+  .profile-foto-nudge{margin-top:12px;max-width:230px;text-align:center;line-height:1.4;}
   .profile-name{font-size:22px;font-weight:800;margin-top:16px;line-height:1.3;width:250px;text-align:center;}
   .profile-stat{color:var(--muted);font-size:14px;margin-top:8px;line-height:1.4;width:250px;text-align:center;}
   .profile-tasks-line{margin-top:8px;font-size:13px;color:var(--muted);line-height:1.4;width:250px;text-align:center;}
@@ -738,12 +739,9 @@
   .chart-stat{display:flex;flex-direction:column;align-items:center;gap:2px;}
   .chart-stat-val{font-size:22px;font-weight:800;color:var(--accent);line-height:1;}
   .chart-stat-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
-  .avatar-picker-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;}
   .avatar-crop-viewport{position:relative;width:280px;height:280px;max-width:100%;margin:0 auto;overflow:hidden;border-radius:16px;background:#000;cursor:grab;touch-action:none;}
   .avatar-crop-viewport:active{cursor:grabbing;}
   .avatar-crop-viewport img{position:absolute;user-select:none;pointer-events:none;}
-  .avatar-preset-btn{width:44px;height:44px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;overflow:hidden;display:flex;}
-  .avatar-preset-btn.selected{border-color:var(--text);}
   .dynamic-list-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
   .dynamic-list-row input{flex:1;}
   .small-remove-btn{background:var(--pill-bg);border:none;border-radius:50%;width:26px;height:26px;color:var(--muted);cursor:pointer;flex:0 0 auto;font-size:12px;transition:color .25s;}
@@ -1950,7 +1948,7 @@ async function loadData(){
           // Acesso desativado pelo professor: desloga e manda pra tela de login.
           await sb.auth.signOut();
         } else if(profile){
-          state.session = {email: profile.email, nome: profile.nome||''};
+          state.session = {email: profile.email, nome: profile.nome||'', foto: profile.foto||''};
         }
       }
     }
@@ -2398,45 +2396,21 @@ function handleTabEditorKeydown(ev){
 }
 
 // ---------- Perfil do Aluno ----------
-const AVATAR_HAIR_PATHS = {
-  long: '<path d="M50 10 C30 10 18 26 18 46 C18 60 22 78 26 92 L34 92 C30 78 28 64 30 52 C34 58 42 62 50 62 C58 62 66 58 70 52 C72 64 70 78 66 92 L74 92 C78 78 82 60 82 46 C82 26 70 10 50 10 Z"/>',
-  bob: '<path d="M50 10 C32 10 20 24 20 42 C20 54 22 62 26 70 L34 70 C31 60 30 50 32 44 C36 54 44 60 50 60 C56 60 64 54 68 44 C70 50 69 60 66 70 L74 70 C78 62 80 54 80 42 C80 24 68 10 50 10 Z"/>',
-  shortmale: '<path d="M50 12 C34 12 24 24 24 38 C24 42 25 46 27 50 C29 40 34 30 42 26 C40 32 42 36 46 38 C52 30 62 28 70 32 C74 36 76 42 75 48 C77 44 78 40 78 36 C78 22 66 12 50 12 Z"/>',
-  shortfade: '<path d="M50 14 C36 14 26 24 26 36 C26 40 27 44 29 47 L71 47 C73 44 74 40 74 36 C74 24 64 14 50 14 Z"/>',
-  curly: '<g><circle cx="30" cy="28" r="9"/><circle cx="40" cy="18" r="10"/><circle cx="52" cy="15" r="10"/><circle cx="64" cy="19" r="9"/><circle cx="72" cy="30" r="8"/><circle cx="26" cy="38" r="7"/><circle cx="74" cy="40" r="7"/></g>',
-  ponytail: '<path d="M50 10 C34 10 22 22 22 38 C22 48 25 56 29 62 L35 62 C31 54 30 46 31 40 C36 50 44 54 50 54 C58 54 66 48 69 40 C70 46 69 54 65 62 L71 62 C75 56 78 48 78 38 C78 22 66 10 50 10 Z M70 40 C76 42 80 50 78 58 C76 64 72 68 68 68 C70 58 70 48 70 40 Z"/>',
-};
-const AVATAR_PRESETS = [
-  {key:'a1',  bg:'#e0b64a', skin:'#f4c9a0', hair:'#2b2320', shirt:'#7d4f8a', style:'long'},
-  {key:'a2',  bg:'#8fb4d9', skin:'#f0b98f', hair:'#5a2f1c', shirt:'#c0392b', style:'bob'},
-  {key:'a3',  bg:'#8a6f5d', skin:'#e8b088', hair:'#1a1a1a', shirt:'#3f6b3f', style:'shortmale'},
-  {key:'a4',  bg:'#7d8590', skin:'#f4c9a0', hair:'#1a1a1a', shirt:'#3a3a3a', style:'shortfade'},
-  {key:'a5',  bg:'#a9d1b8', skin:'#d99a6c', hair:'#2b2320', shirt:'#5a4a30', style:'bob'},
-  {key:'a6',  bg:'#3fa88f', skin:'#c98a5b', hair:'#1a1a1a', shirt:'#d9822b', style:'long'},
-  {key:'a7',  bg:'#7597c9', skin:'#f0b98f', hair:'#4a2b1a', shirt:'#8e6fa8', style:'curly'},
-  {key:'a8',  bg:'#6b7a5f', skin:'#8a5a3a', hair:'#2b1a12', shirt:'#3fa88f', style:'curly'},
-  {key:'a9',  bg:'#4c7d92', skin:'#e8b088', hair:'#caa46a', shirt:'#2b2320', style:'bob'},
-  {key:'a10', bg:'#e8e4d5', skin:'#f4c9a0', hair:'#1a1a1a', shirt:'#3f6b3f', style:'ponytail'},
-  {key:'a11', bg:'#e0703a', skin:'#f0b98f', hair:'#1a1a1a', shirt:'#2b6b6b', style:'shortmale'},
-  {key:'a12', bg:'#b5b5b5', skin:'#8a5a3a', hair:'#1a1a1a', shirt:'#c0392b', style:'shortfade'},
-  // Mais 4 opções (05/09/2026) pra completar duas fileiras cheias no seletor
-  // de avatares (8 por fileira no modal de editar perfil).
-  {key:'a13', bg:'#c9a0dc', skin:'#e8b088', hair:'#3a2a1a', shirt:'#2b4c7d', style:'ponytail'},
-  {key:'a14', bg:'#d98a8a', skin:'#c98a5b', hair:'#1a1a1a', shirt:'#e0b64a', style:'shortmale'},
-  {key:'a15', bg:'#5f8a7a', skin:'#f4c9a0', hair:'#6b4423', shirt:'#8a3f5f', style:'curly'},
-  {key:'a16', bg:'#9a8f5f', skin:'#8a5a3a', hair:'#d8d0c0', shirt:'#3a3a5f', style:'bob'},
-];
-function avatarSvgMarkup(cfg, size){
+// Pedido do usuário em 14/09/2026: tirou-se o seletor de 16 avatares
+// pré-desenhados ("não estou curtindo") — agora só existem duas opções pra
+// foto de perfil: uma foto de verdade (upload) ou este avatar cinza
+// genérico (silhueta branca sobre fundo cinza, sem nenhum traço de rosto),
+// igual à referência enviada pelo usuário.
+function genericAvatarSvg(size){
   size = size||100;
   return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" style="display:block;">
-    <rect width="100" height="100" fill="${cfg.bg}"/>
-    <path d="M20 100 C20 78 32 66 50 66 C68 66 80 78 80 100 Z" fill="${cfg.shirt}"/>
-    <g fill="${cfg.hair}">${AVATAR_HAIR_PATHS[cfg.style]||AVATAR_HAIR_PATHS.bob}</g>
-    <ellipse cx="50" cy="46" rx="19" ry="22" fill="${cfg.skin}"/>
+    <rect width="100" height="100" fill="#9aa0a8"/>
+    <circle cx="50" cy="39" r="17" fill="#fff"/>
+    <path d="M50 61c-23 0-39 13-39 31v8h78v-8c0-18-16-31-39-31z" fill="#fff"/>
   </svg>`;
 }
 function defaultPerfil(){
-  return {nome:'', avatarType:'preset', avatarValue:'guitar', metas:[], artistas:[], wishlist:[], diasEstudo:{}};
+  return {nome:'', metas:[], artistas:[], wishlist:[], diasEstudo:{}};
 }
 function metasList(p){
   if(!p || !p.metas) return [];
@@ -2486,19 +2460,24 @@ async function savePerfil(){
     if(error) throw error;
   }catch(e){ console.error('Erro ao salvar perfil', e); }
 }
-function avatarHtml(p, size){
+// Recebe direto a URL/dataURL da foto (ou vazio) — não mais um objeto de
+// perfil inteiro, já que a foto agora é um campo simples (ver unificação
+// de 14/09/2026 logo abaixo, em saveMinhaFoto/submitPerfilEdit).
+function avatarHtml(foto, size){
   size = size||110;
-  if(p.avatarType==='upload' && p.avatarValue){
-    return `<img src="${p.avatarValue}" class="avatar-img" style="width:${size}px;height:${size}px;">`;
+  if(foto){
+    return `<img src="${foto}" class="avatar-img" style="width:${size}px;height:${size}px;">`;
   }
-  const preset = AVATAR_PRESETS.find(a=>a.key===p.avatarValue) || AVATAR_PRESETS[0];
-  return `<div class="avatar-preset-wrap" style="width:${size}px;height:${size}px;">${avatarSvgMarkup(preset, size)}</div>`;
+  return `<div class="avatar-fallback-wrap" style="width:${size}px;height:${size}px;">${genericAvatarSvg(size)}</div>`;
 }
 function openPerfilEdit(){
   state.perfilDraft = JSON.parse(JSON.stringify(state.perfil || defaultPerfil()));
+  state.perfilFotoDraft = (state.session && state.session.foto) || '';
+  state.trocarSenhaOpen = false;
+  state.trocarSenhaError = null;
   render();
 }
-function closePerfilEdit(){ state.perfilDraft = null; render(); }
+function closePerfilEdit(){ state.perfilDraft = null; state.perfilFotoDraft = null; state.trocarSenhaOpen = false; render(); }
 const AVATAR_CROP_VIEWPORT = 280;
 function readImageSquareDataUrl(file, size, cb){
   if(!file) return;
@@ -2665,25 +2644,43 @@ function confirmAvatarCrop(){
     const srcSize = AVATAR_CROP_VIEWPORT / m.scale;
     ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, OUT, OUT);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-    state.perfilDraft.avatarType = 'upload';
-    state.perfilDraft.avatarValue = dataUrl;
+    state.perfilFotoDraft = dataUrl;
     state.avatarCropModal = null;
     render();
   };
   img.src = m.imgSrc;
 }
-function selectPresetAvatar(key){ state.perfilDraft.avatarType='preset'; state.perfilDraft.avatarValue=key; render(); }
+function removePerfilFotoDraft(){ state.perfilFotoDraft = ''; render(); }
+// Unificação de 14/09/2026: a foto do aluno agora mora só em profiles.foto —
+// a MESMA coluna que o professor já lê pra mostrar a miniatura na lista de
+// Alunos. Antes, o upload feito pelo próprio aluno em "Editar perfil"
+// gravava só em perfis.dados (avatarType/avatarValue), uma tabela separada
+// que o professor nunca lia — por isso a foto enviada pelo aluno nunca
+// aparecia pro professor. Aqui, ao salvar, gravamos em profiles.foto (via
+// saveMinhaFoto) e atualizamos as duas cópias locais que a UI usa
+// (state.session.foto, pro próprio topo/perfil do aluno, e a linha
+// correspondente em state.alunosAutorizados, caso o professor esteja
+// "entrado como este aluno" no momento).
 function submitPerfilEdit(ev){
   ev.preventDefault();
-  state.perfilDraft.nome = document.getElementById('perfil_nome').value.trim();
   state.perfil = state.perfil || defaultPerfil();
-  state.perfil.nome = state.perfilDraft.nome;
-  state.perfil.avatarType = state.perfilDraft.avatarType;
-  state.perfil.avatarValue = state.perfilDraft.avatarValue;
+  state.perfil.nome = document.getElementById('perfil_nome').value.trim();
+  const novaFoto = state.perfilFotoDraft || '';
+  const email = currentAlunoEmail();
   state.perfilDraft = null;
+  state.perfilFotoDraft = null;
+  if(state.session) state.session.foto = novaFoto;
+  const idx = (state.alunosAutorizados||[]).findIndex(a=>a.email===email);
+  if(idx>=0) state.alunosAutorizados[idx] = Object.assign({}, state.alunosAutorizados[idx], {foto: novaFoto});
   render();
   savePerfil();
+  saveMinhaFoto(email, novaFoto);
   showToast('Perfil salvo.');
+}
+async function saveMinhaFoto(email, foto){
+  if(!sb || !email) return;
+  try{ const { error } = await sb.from('profiles').update({foto: foto||''}).eq('email', email); if(error) throw error; }
+  catch(e){ console.error('Erro ao salvar foto do perfil', e); }
 }
 
 // ---- per-section editors (Metas / Artistas / Quero aprender) ----
@@ -4683,7 +4680,7 @@ function updateMobileDrawerHeader(){
     return;
   }
   const p = state.perfil || defaultPerfil();
-  el.innerHTML = `${avatarHtml(p, 38)}<span class="mobile-drawer-name">${escapeHtml(p.nome||'Adicione seu nome')}</span>`;
+  el.innerHTML = `${avatarHtml(state.session && state.session.foto, 38)}<span class="mobile-drawer-name">${escapeHtml(p.nome||'Adicione seu nome')}</span>`;
 }
 function updateMobileDrawerNav(){
   const nav = document.getElementById('mobileDrawerNav');
@@ -4966,7 +4963,7 @@ async function submitLogin(ev){
     state.session = null;
     state.view = 'professorArea';
   } else {
-    state.session = {email: profile.email, nome: profile.nome||''};
+    state.session = {email: profile.email, nome: profile.nome||'', foto: profile.foto||''};
     state.professorMode = null;
     state.view = 'perfil';
   }
@@ -5062,6 +5059,35 @@ async function removeAlunoAutorizado(email){
   render();
   showToast('Aluno removido.');
 }
+// Pedido do usuário em 14/09/2026: "Redefinir senha do aluno" na Área do
+// Professor, sempre pra "123456" — igual à senha padrão de um cadastro
+// novo. Trocar a senha de OUTRO usuário exige a API de Admin do Auth
+// (auth.admin.updateUserById), que só funciona com a chave service_role —
+// por segurança essa chave nunca pode ficar no navegador, então isso
+// precisa passar por uma Edge Function (mesmo padrão já usado por
+// criar-aluno: ela confere que quem chamou é professor antes de agir).
+// IMPORTANTE: esta função de borda ainda não foi publicada no Supabase —
+// o botão existe e chama a rota certa, mas só vai funcionar de verdade
+// depois do deploy de functions/v1/resetar-senha-aluno (fonte em
+// /tmp/work/supabase_edge_function_resetar_senha_aluno/index.ts).
+async function resetarSenhaAluno(email){
+  const aluno = (state.alunosAutorizados||[]).find(a=>a.email===email);
+  if(!aluno) return;
+  const ok = await customConfirm('Redefinir a senha deste aluno para "123456"? Ele(a) vai precisar dessa senha para entrar da próxima vez.');
+  if(!ok) return;
+  if(!sb) return;
+  try{
+    const { data: { session } } = await sb.auth.getSession();
+    const resp = await fetch(SUPABASE_URL+'/functions/v1/resetar-senha-aluno', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey': SUPABASE_PUBLISHABLE_KEY, 'Authorization':'Bearer '+(session&&session.access_token) },
+      body: JSON.stringify({ id: aluno.id })
+    });
+    const out = await resp.json();
+    if(!resp.ok) throw new Error(out.error||'Erro ao redefinir a senha.');
+    showToast('Senha redefinida para "123456".');
+  }catch(e){ showToast('Não foi possível redefinir a senha: '+e.message, true); }
+}
 async function toggleAlunoAtivo(email, ev){
   if(ev) ev.stopPropagation();
   const idx = (state.alunosAutorizados||[]).findIndex(a=>a.email===email);
@@ -5103,14 +5129,12 @@ async function saveAlunoDetalhe(ev){
     }).eq('email', emailAtual);
   }catch(e){ showToast('Não foi possível salvar. Verifique a conexão.', true); return; }
   state.alunosAutorizados[idx] = Object.assign({}, state.alunosAutorizados[idx], {nome, foto: state.detFotoPreview||'', dataInicio, dataFim});
-  // Os campos do formulário são lidos direto do DOM aqui, mas o template os desenha a
-  // partir de state.detXDraft. Sem atualizar os drafts também, o render() logo abaixo
-  // redesenhava o formulário com os valores ANTIGOS por cima do que a pessoa acabou de
-  // digitar e salvar — parecia que o salvamento tinha revertido a alteração, mesmo o
-  // dado correto já estando persistido. Bug real encontrado e corrigido em 03/09/2026.
-  state.detNomeDraft = nome;
-  state.detDataInicioDraft = dataInicio;
-  state.detDataFimDraft = dataFim;
+  // Pedido do usuário em 14/09/2026: ao salvar, a tela deve voltar sozinha para a
+  // lista de alunos, em vez de ficar parada na própria tela de edição — por isso
+  // professorStudentEmail (e o preview de foto, que só faz sentido dentro do
+  // formulário) são limpos aqui, igual closeAlunoDetalhe() faz no botão "Voltar".
+  state.professorStudentEmail = null;
+  state.detFotoPreview = null;
   render();
   showToast('Dados do aluno salvos.');
 }
@@ -5477,7 +5501,7 @@ function professorAlunosTabHtml(){
     <div class="page-header-row" style="margin-top:26px;">
       <button type="button" class="btn-ghost btn-small" onclick="toggleShowAlunosInativos()">${state.showAlunosInativos?'Ocultar':'Mostrar'} alunos inativos (${inativos.length})</button>
     </div>
-    ${state.showAlunosInativos?`<div class="cifra-list">${inativos.map(a=>alunoRowHtml(a,true,pendentes)).join('')}</div>`:''}
+    ${state.showAlunosInativos?`<div class="cifra-list">${inativos.map(a=>alunoRowHtml(a,true,pendentesPorAluno(a.email))).join('')}</div>`:''}
     `:''}
   `;
 }
@@ -5497,7 +5521,8 @@ function professorAlunoDetalheHtml(){
       <form onsubmit="saveAlunoDetalhe(event)">
         <div class="login-field"><label>Nome</label><input id="det_nome" type="text" value="${escapeHtml(state.detNomeDraft||'')}"></div>
         <div class="login-field"><label>E-mail</label><input id="det_email" type="text" value="${escapeHtml(state.detEmailDraft||'')}" disabled title="O e-mail de login não pode ser trocado por aqui."></div>
-        <p class="hint" style="margin:-4px 0 12px;">A senha é definida no cadastro. O próprio aluno pode trocar em "Editar perfil".</p>
+        <p class="hint" style="margin:-4px 0 4px;">A senha é definida no cadastro. O próprio aluno pode trocar em "Editar perfil".</p>
+        <button type="button" class="text-link-btn" style="margin-bottom:12px;" onclick='resetarSenhaAluno(${JSON.stringify(aluno.email)})'>Redefinir senha do aluno</button>
         <div class="aluno-datas-row">
           <div class="login-field"><label>Início das aulas</label><input id="det_data_inicio" type="date" value="${escapeHtml(state.detDataInicioDraft||'')}"></div>
           <div class="login-field"><label>Encerramento</label><input id="det_data_fim" type="date" value="${escapeHtml(state.detDataFimDraft||'')}"></div>
@@ -7062,7 +7087,7 @@ async function enterAsStudent(email){
   const aluno = (state.alunosAutorizados||[]).find(a=>a.email===email);
   if(!aluno) return;
   state.professorMode = {email: aluno.email, nome: aluno.nome||aluno.email};
-  state.session = {email: aluno.email, nome: aluno.nome||''};
+  state.session = {email: aluno.email, nome: aluno.nome||'', foto: aluno.foto||''};
   state.view = 'perfil';
   state.perfil = null; state.tarefas = [];
   render();
@@ -7203,7 +7228,7 @@ function renderApp(){
         ${isProfessorAdmin?`
         <button type="button" class="text-link-btn topbar-sair-btn" onclick="sairProfessorParaLogin()">${ICON_LOGOUT} Sair</button>
         `:`
-        <a class="topbar-avatar" onclick="toggleTopbarMenu(event)" title="Menu">${avatarHtml(state.perfil || defaultPerfil(), 30)}</a>
+        <a class="topbar-avatar" onclick="toggleTopbarMenu(event)" title="Menu">${avatarHtml(state.session && state.session.foto, 30)}</a>
         ${state.topbarMenuOpen?`
         <div class="topbar-menu">
           ${(state.professorMode && state.professorMode.email)?`<button type="button" class="topbar-menu-item" onclick="state.topbarMenuOpen=false;exitProfessorMode()">${ICON_BACK_TO_PROF} Voltar à área do professor</button>`:''}
@@ -7603,7 +7628,8 @@ function renderApp(){
       </div>
       <div class="profile-layout">
         <div class="profile-card">
-          <div class="profile-avatar">${avatarHtml(p, 190)}</div>
+          <div class="profile-avatar">${avatarHtml(state.session && state.session.foto, 190)}</div>
+          ${(state.session && state.session.foto) ? '' : '<div class="hint profile-foto-nudge">Adicione uma foto de perfil, para que seu professor te identifique com mais facilidade.</div>'}
           <div class="profile-name">${escapeHtml(p.nome||'Adicione seu nome')}</div>
           <div class="profile-stat">${totalMusicas} música${totalMusicas===1?'':'s'} no repertório</div>
           <div class="profile-tasks-line">
@@ -7997,15 +8023,14 @@ function perfilEditModalHtml(){
         <div class="field">
           <label>Foto de perfil</label>
           <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;">
-            ${avatarHtml(d, 70)}
+            ${avatarHtml(state.perfilFotoDraft, 70)}
             <label class="btn-ghost btn-small" style="cursor:pointer;">
               Fazer upload
               <input type="file" accept="image/*" style="display:none" onchange="handleAvatarUpload(this)">
             </label>
+            ${state.perfilFotoDraft?`<button type="button" class="text-link-btn" onclick="removePerfilFotoDraft()">Remover</button>`:''}
           </div>
-          <div class="avatar-picker-row">
-            ${AVATAR_PRESETS.map(a=>`<button type="button" class="avatar-preset-btn ${d.avatarType==='preset'&&d.avatarValue===a.key?'selected':''}" onclick="selectPresetAvatar('${a.key}')" title="Escolher este avatar">${avatarSvgMarkup(a,44)}</button>`).join('')}
-          </div>
+          ${state.perfilFotoDraft?'':'<p class="hint" style="margin:0;">Adicione uma foto de perfil, para que seu professor te identifique com mais facilidade.</p>'}
         </div>
         <div class="field"><label>Nome e sobrenome</label><input id="perfil_nome" value="${escapeHtml(d.nome||'')}" oninput="state.perfilDraft.nome=this.value" placeholder="Seu nome"></div>
         <div class="form-actions">
@@ -8013,17 +8038,21 @@ function perfilEditModalHtml(){
           <button type="submit" class="btn">Salvar perfil</button>
         </div>
       </form>
-      <h4 style="margin:24px 0 4px;">Trocar minha senha</h4>
-      ${state.trocarSenhaError?`<div class="login-error">${escapeHtml(state.trocarSenhaError)}</div>`:''}
-      <form onsubmit="submitTrocarSenha(event)">
-        <div class="field"><label>Nova senha</label><input id="nova_senha_input" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
-        <div class="form-actions">
-          <button type="submit" class="btn">Trocar senha</button>
-        </div>
-      </form>
+      <button type="button" class="text-link-btn" style="margin-top:22px;" onclick="toggleTrocarSenhaBox()">${state.trocarSenhaOpen?'Cancelar troca de senha':'Trocar minha senha'}</button>
+      ${state.trocarSenhaOpen?`
+      <div style="margin-top:10px;">
+        ${state.trocarSenhaError?`<div class="login-error">${escapeHtml(state.trocarSenhaError)}</div>`:''}
+        <form onsubmit="submitTrocarSenha(event)">
+          <div class="field"><label>Nova senha</label><input id="nova_senha_input" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+          <div class="form-actions">
+            <button type="submit" class="btn">Trocar senha</button>
+          </div>
+        </form>
+      </div>`:''}
     </div>
   </div>`;
 }
+function toggleTrocarSenhaBox(){ state.trocarSenhaOpen = !state.trocarSenhaOpen; state.trocarSenhaError = null; render(); }
 async function submitTrocarSenha(ev){
   if(ev) ev.preventDefault();
   const input = document.getElementById('nova_senha_input');
