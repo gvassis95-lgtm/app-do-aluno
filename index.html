@@ -390,6 +390,7 @@
   .rec-obs-input::placeholder{color:var(--muted);}
   .chip-btn{cursor:pointer;border:none;font-family:'Montserrat',sans-serif;transition:background .25s,color .25s;}
   .chip-btn:hover{background:var(--accent);color:#fff;}
+  .chip-btn.active{background:var(--accent);color:#fff;}
   .bracho-scroll{overflow-x:auto;background:var(--bg-panel);border-radius:14px;padding:20px;}
   .bracho-svg{display:block;}
   .bracho-note{cursor:pointer;}
@@ -1068,6 +1069,7 @@ const BRAIN_SVG = '<svg viewBox="0 0 512 512" fill="currentColor"><g> <path d="M
 const EAR_SVG = '<svg viewBox="0 0 512 512" fill="currentColor"><path d="M256,16C159,16,80,95,80,192V398.57a97.59,97.59,0,0,0,28,68.49A94.51,94.51,0,0,0,176,496c36.86,0,67.18-15.62,90.12-46.42,4.48-6,9.55-14.74,15.42-24.85,15.32-26.37,36.29-62.47,63.17-80.74,25.77-17.51,47.23-39.54,62-63.72C423.51,252.94,432,223.24,432,192,432,95,353.05,16,256,16Zm96,184a16,16,0,0,1-16-16c0-39.7-35.89-72-80-72s-80,32.3-80,72v30.42c27.19-7.84,58.4-6.72,64.28-6.42a48,48,0,0,1,38.6,75.9c-.3.41-.61.81-.95,1.2-16.55,19-36,45.48-38.46,55a16,16,0,0,1-30.94-8.14c5.51-20.94,36.93-58.2,44.66-67.15A16,16,0,0,0,239.82,240l-.88,0c-16.6-.89-45.89.8-62.94,8.31V304a16,16,0,0,1-32,0V184c0-57.35,50.24-104,112-104s112,46.65,112,104A16,16,0,0,1,352,200Z"/></svg>';
 const SEND_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
 const ADD_FOTO_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20.5c0-4.4 3.6-6.5 8-6.5s8 2.1 8 6.5"/></svg>';
+const FOLDER_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5a1.5 1.5 0 0 1 1.5-1.5h4.5l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"/></svg>';
 async function toggleTiradaDeOuvido(id, ev){
   if(ev) ev.stopPropagation();
   let c = state.detailCache[id] || await loadDetail(id);
@@ -1877,11 +1879,13 @@ function openVariantModalFromPopup(name){ state.chordPopup = null; openVariantMo
 let state = {
   loaded:false, theme:'dark', view:'perfil',
   session:null, loginError:null, loginEmailDraft:'', alunosAutorizados:[],
-  config:{logoLight:'', logoDark:'', accent:'', whatsapp:'', instagram:'', youtube:'', tiktok:'', facebook:'', x:'', backingTracksUrl:'', disabledTools:[], toolOrder:[], loginLayout:'padrao', loginImage:''},
+  config:{logoLight:'', logoDark:'', accent:'', whatsapp:'', instagram:'', youtube:'', tiktok:'', facebook:'', x:'', backingTracksUrl:'', disabledTools:[], toolOrder:[], loginLayout:'padrao', loginImage:'', materiaisPastas:[]},
   professorTab:'alunos', professorStudentEmail:null, professorCadastroOpen:false, professorMode:null, showAlunosInativos:false,
   cadFotoPreview:null, detFotoPreview:null, toolContextMenu:null, itemContextMenu:null,
-  materiaisIndex:[], materiaisDetailCache:{}, materialUploadOpen:false, matDraftTitulo:'', matDraftPdfData:null, matDraftPdfName:'', matDraftLoading:false,
+  materiaisIndex:[], materiaisDetailCache:{}, materialUploadOpen:false, matDraftTitulo:'', matDraftPdfData:null, matDraftPdfName:'', matDraftLoading:false, matDraftPastaId:'',
   matFiltro:{busca:''}, matSearchOpen:false, materialViewId:null,
+  matSortMode:'data', matSortDir:'desc', matPastaFiltro:null, materialMoveId:null,
+  matNovaPastaModalOpen:false, matNovaPastaNomeDraft:'', matGerenciarPastasOpen:false,
   notifications:[], notificationsRead:[], notifPanelOpen:false,
   cadNomeDraft:'', cadEmailDraft:'', cadSenhaDraft:'',
   detNomeDraft:'', detEmailDraft:'', detSenhaDraft:'', detDataInicioDraft:'', detDataFimDraft:'',
@@ -2179,13 +2183,13 @@ async function deleteSoloRemote(id){
   if(!sb) return;
   try{ const { error } = await sb.from('solos').delete().eq('id', id); if(error) throw error; if(state._soloKnownIds) state._soloKnownIds.delete(id); }catch(e){ console.error('Erro ao excluir solo', e); }
 }
-const MATERIAL_INDEX_SELECT = 'id,titulo,destinatarios,criadoEm:dados->criadoEm';
+const MATERIAL_INDEX_SELECT = 'id,titulo,destinatarios,criadoEm:dados->criadoEm,pastaId:dados->pastaId';
 async function loadMateriaisIndex(){
   if(!sb){ state.materiaisIndex = []; return; }
   try{
     const { data, error } = await sb.from('materiais').select(MATERIAL_INDEX_SELECT).order('criado_em', {ascending:true});
     if(error) throw error;
-    state.materiaisIndex = (data||[]).map(r=>({ id:r.id, titulo:r.titulo||'', destinatarios:r.destinatarios||[], criadoEm:r.criadoEm||Date.now() }));
+    state.materiaisIndex = (data||[]).map(r=>({ id:r.id, titulo:r.titulo||'', destinatarios:r.destinatarios||[], criadoEm:r.criadoEm||Date.now(), pastaId:r.pastaId||null }));
     state._materialKnownIds = new Set(state.materiaisIndex.map(m=>m.id));
   }catch(e){ console.error('Erro ao carregar materiais', e); state.materiaisIndex=[]; }
 }
@@ -4791,6 +4795,79 @@ function resetSolosView(){ state.solosFiltro={busca:''}; state.solosSortMode='al
 function setMatFiltro(val){ state.matFiltro.busca=val; render(); }
 function openMatSearch(){ state.matSearchOpen=true; render(); const el=document.getElementById('mat_busca_input'); if(el) el.focus(); }
 function collapseMatSearchIfEmpty(){ if(!state.matFiltro.busca){ state.matSearchOpen=false; render(); } }
+function setMatSortMode(v){ state.matSortMode=v; render(); }
+function setMatSortDir(v){ state.matSortDir=v; render(); }
+function setMatPastaFiltro(v){ state.matPastaFiltro = v||null; render(); }
+function sortedMateriais(items){
+  const arr = items.slice();
+  if(state.matSortMode==='alfabetica'){
+    arr.sort((a,b)=>(a.titulo||'').localeCompare(b.titulo||'','pt',{sensitivity:'base'}));
+  } else {
+    arr.sort((a,b)=> state.matSortDir==='asc' ? (a.criadoEm||0)-(b.criadoEm||0) : (b.criadoEm||0)-(a.criadoEm||0));
+  }
+  return arr;
+}
+// ---- pastas de materiais — lista simples guardada em config_escola (jsonb),
+// mesmo mecanismo já usado para toolOrder/disabledTools: sincroniza sozinho
+// entre professor e alunos, sem precisar de tabela nova no banco.
+function getMateriaisPastas(){ return (state.config && state.config.materiaisPastas) || []; }
+function pastaNome(id){ const p = getMateriaisPastas().find(x=>x.id===id); return p ? p.nome : ''; }
+function openNovaPastaModal(){ state.matNovaPastaModalOpen = true; state.matNovaPastaNomeDraft=''; render(); }
+function closeNovaPastaModal(){ state.matNovaPastaModalOpen = false; render(); }
+async function criarPasta(){
+  const nome = (state.matNovaPastaNomeDraft||'').trim();
+  if(!nome){ showToast('Dê um nome à pasta.', true); return; }
+  state.config = state.config || {};
+  state.config.materiaisPastas = state.config.materiaisPastas || [];
+  const pasta = { id: uid(), nome };
+  state.config.materiaisPastas.push(pasta);
+  state.matNovaPastaModalOpen = false;
+  state.matNovaPastaNomeDraft = '';
+  render();
+  await saveConfigEscola();
+  showToast('Pasta criada.');
+}
+async function renomearPasta(id, novoNome){
+  const p = (getMateriaisPastas()).find(x=>x.id===id); if(!p) return;
+  novoNome = (novoNome||'').trim();
+  if(!novoNome || novoNome===p.nome) { render(); return; }
+  p.nome = novoNome;
+  render();
+  await saveConfigEscola();
+}
+async function excluirPasta(id){
+  const ok = await customConfirm('Excluir esta pasta? Os materiais dentro dela voltam para "Sem pasta" — nenhum arquivo é apagado.');
+  if(!ok) return;
+  state.config.materiaisPastas = (getMateriaisPastas()).filter(p=>p.id!==id);
+  if(state.matPastaFiltro===id) state.matPastaFiltro=null;
+  render();
+  await saveConfigEscola();
+  const afetados = state.materiaisIndex.filter(m=>m.pastaId===id);
+  for(const m of afetados){
+    m.pastaId = null;
+    try{
+      const full = state.materiaisDetailCache[m.id] || await loadMaterialDetail(m.id);
+      if(full){ full.pastaId = null; state.materiaisDetailCache[m.id] = full; await saveMaterialDetail(m.id, full); }
+    }catch(e){}
+  }
+  render();
+}
+function openGerenciarPastas(){ state.matGerenciarPastasOpen=true; render(); }
+function closeGerenciarPastas(){ state.matGerenciarPastasOpen=false; render(); }
+function openMaterialMoveModal(id){ state.itemContextMenu = null; state.materialMoveId = id; render(); }
+function closeMaterialMoveModal(){ state.materialMoveId = null; render(); }
+async function moveMaterialToPasta(pastaId){
+  const id = state.materialMoveId; if(!id) return;
+  const meta = state.materiaisIndex.find(m=>m.id===id); if(!meta) return;
+  meta.pastaId = pastaId || null;
+  state.materialMoveId = null;
+  render();
+  try{
+    const full = state.materiaisDetailCache[id] || await loadMaterialDetail(id);
+    if(full){ full.pastaId = pastaId||null; state.materiaisDetailCache[id] = full; await saveMaterialDetail(id, full); }
+    showToast('Material movido.');
+  }catch(e){ showToast('Não foi possível mover o material.', true); }
+}
 async function openCifraViewer(id){
   stopAutoScroll(); state.scrolling=false;
   state.cifraSelId=id; state.semis=0; state.view='cifraViewer'; state.mobileToolPanel=null;
@@ -5198,7 +5275,7 @@ async function saveSendModal(){
 // ---- Stage 2: configurações da escola viram uma linha única (id=1) compartilhada
 // na tabela public.config_escola, em vez de um storage key local por aparelho.
 async function loadConfigEscola(){
-  const defaults = {logoLight:'', logoDark:'', accent:'', whatsapp:'', instagram:'', youtube:'', tiktok:'', facebook:'', x:'', disabledTools:[], toolOrder:[], loginLayout:'padrao', loginImage:''};
+  const defaults = {logoLight:'', logoDark:'', accent:'', whatsapp:'', instagram:'', youtube:'', tiktok:'', facebook:'', x:'', backingTracksUrl:'', disabledTools:[], toolOrder:[], loginLayout:'padrao', loginImage:'', materiaisPastas:[]};
   if(!sb){ state.config = defaults; return; }
   try{
     const { data, error } = await sb.from('config_escola').select('dados').eq('id', 1).maybeSingle();
@@ -5329,7 +5406,12 @@ function professorRepertorioTabHtml(){
 }
 function professorMateriaisTabHtml(){
   const f = state.matFiltro;
-  const mats = state.materiaisIndex.filter(m=>!f.busca || m.titulo.toLowerCase().includes(f.busca.toLowerCase())).sort((a,b)=>b.criadoEm-a.criadoEm);
+  const pastas = getMateriaisPastas();
+  const pastaAtiva = state.matPastaFiltro;
+  let mats = state.materiaisIndex.filter(m=>!f.busca || m.titulo.toLowerCase().includes(f.busca.toLowerCase()));
+  if(pastaAtiva==='sem-pasta') mats = mats.filter(m=>!m.pastaId);
+  else if(pastaAtiva) mats = mats.filter(m=>m.pastaId===pastaAtiva);
+  mats = sortedMateriais(mats);
   return `
     <div class="page-header-row" style="margin-top:0;">
       <h3 style="margin:0;">Materiais</h3>
@@ -5340,16 +5422,37 @@ function professorMateriaisTabHtml(){
         <button class="btn" onclick="openMaterialUpload()">+ Enviar material</button>
       </div>
     </div>
-    <div class="filters"><span class="total-count no-print" style="margin-left:auto;">Total de materiais disponíveis: ${state.materiaisIndex.length}</span></div>
+    <div class="hint" style="margin:-6px 0 14px;">PDFs novos ficam visíveis só para você até você enviar para os alunos.</div>
+    <div class="chip-row" style="margin-bottom:14px;align-items:center;">
+      <button type="button" class="chip chip-btn ${!pastaAtiva?'active':''}" onclick="setMatPastaFiltro(null)">Todos</button>
+      <button type="button" class="chip chip-btn ${pastaAtiva==='sem-pasta'?'active':''}" onclick="setMatPastaFiltro('sem-pasta')">Sem pasta</button>
+      ${pastas.map(p=>`<button type="button" class="chip chip-btn ${pastaAtiva===p.id?'active':''}" onclick="setMatPastaFiltro('${p.id}')">${escapeHtml(p.nome)}</button>`).join('')}
+      <button type="button" class="text-link-btn" onclick="openGerenciarPastas()">+ Pastas</button>
+    </div>
+    <div class="filters">
+      <div class="sort-group">
+        <span class="tlabel">Classificar por</span>
+        <select onchange="setMatSortMode(this.value)">
+          <option value="data" ${state.matSortMode==='data'?'selected':''}>Ordem de envio</option>
+          <option value="alfabetica" ${state.matSortMode==='alfabetica'?'selected':''}>Ordem alfabética</option>
+        </select>
+        ${state.matSortMode==='data'?`
+        <select onchange="setMatSortDir(this.value)">
+          <option value="desc" ${state.matSortDir==='desc'?'selected':''}>Mais recentes primeiro</option>
+          <option value="asc" ${state.matSortDir==='asc'?'selected':''}>Mais antigas primeiro</option>
+        </select>`:''}
+      </div>
+      <span class="total-count no-print" style="margin-left:auto;">Total de materiais disponíveis: ${state.materiaisIndex.length}</span>
+    </div>
     ${mats.length?`<div class="cifra-list">${mats.map(m=>{
       const dest = m.destinatarios||[];
-      const destLabel = dest.length===0 ? 'Todos os alunos' : (dest.length===1?'1 aluno':dest.length+' alunos');
+      const destLabel = dest.length===0 ? 'Não enviado' : (dest.length===1?'1 aluno':dest.length+' alunos');
       return `
-      <div class="cifra-row" onclick="professorOpenMaterial('${m.id}')">
+      <div class="cifra-row" onclick="professorOpenMaterial('${m.id}')" oncontextmenu="openItemContextMenu(event,'material','${m.id}')">
         <div class="avatar">${ICON_FILE}</div>
         <div class="info">
           <div class="tit">${escapeHtml(m.titulo)}</div>
-          <div class="art">${formatDatePt(m.criadoEm)}</div>
+          <div class="art">${formatDatePt(m.criadoEm)}${m.pastaId?' · '+escapeHtml(pastaNome(m.pastaId)):''}</div>
         </div>
         <div class="row-status">
           <span class="prof-song-dest">${destLabel}</span>
@@ -5359,27 +5462,93 @@ function professorMateriaisTabHtml(){
       </div>`;
     }).join('')}</div>`:`<div class="empty"><span class="big">${ICON_FILE_BIG}</span>${state.materiaisIndex.length===0?'Nenhum material enviado ainda. Clique em "Enviar material" para começar.':'Nenhum material encontrado com esse filtro.'}</div>`}
     ${state.materialUploadOpen?materialUploadModalHtml():''}
+    ${materialMoveModalHtml()}
+    ${novaPastaModalHtml()}
+    ${gerenciarPastasModalHtml()}
   `;
 }
 function materialUploadModalHtml(){
+  const pastas = getMateriaisPastas();
   return `
   <div class="modal-bg" onclick="if(event.target===this) closeMaterialUpload()">
     <div class="mini-modal" style="max-width:420px;text-align:left;">
       <h4 style="margin:0 0 14px;">Enviar material</h4>
       <form onsubmit="submitMaterialUpload(event)">
         <div class="login-field"><label>Nome do material</label><input id="mat_titulo" type="text" placeholder="Ex: Apostila de escalas" value="${escapeHtml(state.matDraftTitulo||'')}" oninput="state.matDraftTitulo=this.value"></div>
+        ${pastas.length?`<div class="login-field"><label>Pasta (opcional)</label><select onchange="state.matDraftPastaId=this.value"><option value="">Sem pasta</option>${pastas.map(p=>`<option value="${p.id}" ${state.matDraftPastaId===p.id?'selected':''}>${escapeHtml(p.nome)}</option>`).join('')}</select></div>`:''}
         <div class="login-field">
           <label>Arquivo PDF</label>
           <div class="file-drop ${state.matDraftPdfData?'has-file':''}" onclick="document.getElementById('mat_pdf').click()" ondragover="event.preventDefault(); this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleMaterialPdfDrop(event, this)">
-            ${state.matDraftLoading? ICON_HOURGLASS+' Carregando arquivo…' : state.matDraftPdfData? (ICON_FILE+' '+escapeHtml(state.matDraftPdfName||'arquivo.pdf')+' — clique para trocar') : 'Clique para escolher ou arraste um arquivo PDF aqui'}
+            ${state.matDraftLoading? ICON_HOURGLASS+' Carregando arquivo…' : state.matDraftPdfData? (ICON_FILE+' '+escapeHtml(state.matDraftPdfName||'arquivo.pdf')+' — clique para trocar') : 'Clique para escolher ou arraste um ou mais arquivos PDF aqui'}
           </div>
-          <input type="file" id="mat_pdf" accept="application/pdf" style="display:none;" onchange="handleMaterialPdfFile(this)">
+          <p class="hint" style="margin:6px 0 0;">Selecionar ou arrastar vários arquivos de uma vez envia todos direto, usando o nome de cada arquivo como título.</p>
+          <input type="file" id="mat_pdf" accept="application/pdf" multiple style="display:none;" onchange="handleMaterialPdfFile(this)">
         </div>
         <div class="form-actions">
           <button type="button" class="btn-ghost" onclick="closeMaterialUpload()">Cancelar</button>
           <button type="submit" class="btn">Enviar</button>
         </div>
       </form>
+    </div>
+  </div>`;
+}
+function materialMoveModalHtml(){
+  if(!state.materialMoveId) return '';
+  const pastas = getMateriaisPastas();
+  const meta = state.materiaisIndex.find(m=>m.id===state.materialMoveId);
+  const current = meta ? meta.pastaId : null;
+  return `
+  <div class="modal-bg" onclick="if(event.target===this) closeMaterialMoveModal()">
+    <div class="mini-modal" style="max-width:360px;text-align:left;">
+      <h4 style="margin:0 0 4px;">Mover material</h4>
+      <p class="hint" style="margin:0 0 14px;">${meta?escapeHtml(meta.titulo):''}</p>
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;">
+        <button type="button" class="btn-ghost btn-small" style="text-align:left;${!current?'border-color:var(--accent);color:var(--accent);':''}" onclick="moveMaterialToPasta(null)">${!current?'✓ ':''}Sem pasta</button>
+        ${pastas.map(p=>`<button type="button" class="btn-ghost btn-small" style="text-align:left;${current===p.id?'border-color:var(--accent);color:var(--accent);':''}" onclick="moveMaterialToPasta('${p.id}')">${current===p.id?'✓ ':''}${escapeHtml(p.nome)}</button>`).join('')}
+        ${pastas.length===0?'<p class="hint" style="margin:0;">Nenhuma pasta criada ainda.</p>':''}
+      </div>
+      <div class="form-actions">
+        <button type="button" class="text-link-btn" style="margin-right:auto;" onclick="closeMaterialMoveModal();openNovaPastaModal();">+ Nova pasta</button>
+        <button type="button" class="btn-ghost" onclick="closeMaterialMoveModal()">Fechar</button>
+      </div>
+    </div>
+  </div>`;
+}
+function novaPastaModalHtml(){
+  if(!state.matNovaPastaModalOpen) return '';
+  return `
+  <div class="modal-bg" onclick="if(event.target===this) closeNovaPastaModal()">
+    <div class="mini-modal" style="max-width:340px;text-align:left;">
+      <h4 style="margin:0 0 14px;">Nova pasta</h4>
+      <form onsubmit="event.preventDefault();criarPasta();">
+        <div class="login-field"><label>Nome da pasta</label><input id="nova_pasta_nome" type="text" placeholder="Ex: Apostilas" value="${escapeHtml(state.matNovaPastaNomeDraft||'')}" oninput="state.matNovaPastaNomeDraft=this.value"></div>
+        <div class="form-actions">
+          <button type="button" class="btn-ghost" onclick="closeNovaPastaModal()">Cancelar</button>
+          <button type="submit" class="btn">Criar</button>
+        </div>
+      </form>
+    </div>
+  </div>`;
+}
+function gerenciarPastasModalHtml(){
+  if(!state.matGerenciarPastasOpen) return '';
+  const pastas = getMateriaisPastas();
+  return `
+  <div class="modal-bg" onclick="if(event.target===this) closeGerenciarPastas()">
+    <div class="mini-modal" style="max-width:420px;text-align:left;">
+      <h4 style="margin:0 0 14px;">Gerenciar pastas</h4>
+      ${pastas.length===0?'<p class="hint" style="margin:0 0 14px;">Nenhuma pasta criada ainda.</p>':`
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;margin-bottom:14px;">
+        ${pastas.map(p=>`
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" value="${escapeHtml(p.nome)}" onchange="renomearPasta('${p.id}', this.value)">
+          <button type="button" class="row-ear" title="Excluir pasta" onclick="excluirPasta('${p.id}')">✕</button>
+        </div>`).join('')}
+      </div>`}
+      <div class="form-actions">
+        <button type="button" class="text-link-btn" style="margin-right:auto;" onclick="openNovaPastaModal()">+ Nova pasta</button>
+        <button type="button" class="btn-ghost" onclick="closeGerenciarPastas()">Fechar</button>
+      </div>
     </div>
   </div>`;
 }
@@ -6355,21 +6524,69 @@ function choosePdfAsText(){
 }
 
 // ---- materiais (PDFs enviados pelo professor) ----
-function openMaterialUpload(){ state.materialUploadOpen = true; state.matDraftTitulo=''; state.matDraftPdfData=null; state.matDraftPdfName=''; state.matDraftLoading=false; render(); }
+function openMaterialUpload(){
+  state.materialUploadOpen = true;
+  state.matDraftTitulo=''; state.matDraftPdfData=null; state.matDraftPdfName=''; state.matDraftLoading=false;
+  // Se uma pasta específica estiver sendo visualizada, já sugere ela pro novo material.
+  state.matDraftPastaId = (state.matPastaFiltro && state.matPastaFiltro!=='sem-pasta') ? state.matPastaFiltro : '';
+  render();
+}
 function closeMaterialUpload(){ state.materialUploadOpen = false; render(); }
+// Selecionar/arrastar vários arquivos de uma vez pula o formulário de título —
+// cada PDF é enviado na hora, usando o nome do próprio arquivo como título.
 async function handleMaterialPdfFile(input){
-  const file = input.files[0]; if(!file) return;
-  await processMaterialPdfFile(file);
+  const files = Array.from(input.files||[]);
+  if(files.length===0) return;
+  if(files.length>1){ await processMultipleMaterialFiles(files); input.value=''; return; }
+  await processMaterialPdfFile(files[0]);
 }
 function handleMaterialPdfDrop(ev, el){
   ev.preventDefault();
   el.classList.remove('drag-over');
-  const file = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
-  if(!file) return;
-  if(file.type!=='application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){
-    showToast('Arraste um arquivo PDF.', true); return;
+  const files = Array.from((ev.dataTransfer && ev.dataTransfer.files) || []);
+  if(files.length===0) return;
+  const pdfs = files.filter(f=> f.type==='application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+  if(pdfs.length===0){ showToast('Arraste um ou mais arquivos PDF.', true); return; }
+  if(pdfs.length>1){ processMultipleMaterialFiles(pdfs); return; }
+  processMaterialPdfFile(pdfs[0]);
+}
+async function readFileAsDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>resolve(reader.result);
+    reader.onerror = ()=>reject(new Error('Não foi possível ler o arquivo'));
+    reader.readAsDataURL(file);
+  });
+}
+async function processMultipleMaterialFiles(files){
+  const cap = maxPdfBytes();
+  const pastaId = state.matDraftPastaId || null;
+  state.materialUploadOpen = false;
+  render();
+  let okCount = 0, failCount = 0;
+  for(let i=0;i<files.length;i++){
+    const file = files[i];
+    const isPdf = file.type==='application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if(!isPdf || file.size > cap){ failCount++; continue; }
+    try{
+      const dataUrl = await readFileAsDataUrl(file);
+      const titulo = file.name.replace(/\.pdf$/i, '').trim() || 'Material';
+      const id = uid();
+      const criadoEm = Date.now() + i;
+      const meta = {id, titulo, criadoEm, destinatarios:[], pastaId};
+      const full = {id, titulo, criadoEm, pdfData: dataUrl, pdfName: file.name, destinatarios:[], pastaId};
+      state.materiaisIndex.push(meta);
+      state.materiaisDetailCache[id] = full;
+      render();
+      const ok = await saveMaterialDetail(id, full);
+      if(ok) okCount++; else failCount++;
+    }catch(e){ failCount++; }
   }
-  processMaterialPdfFile(file);
+  state.matDraftTitulo=''; state.matDraftPdfData=null; state.matDraftPdfName=''; state.matDraftPastaId='';
+  render();
+  if(okCount>0 && failCount===0) showToast(okCount===1?'Material enviado.':`${okCount} materiais enviados.`);
+  else if(okCount>0 && failCount>0) showToast(`${okCount} materiais enviados, ${failCount} não puderam ser enviados (arquivo grande demais ou não é PDF).`, true);
+  else showToast('Não foi possível enviar os arquivos.', true);
 }
 async function processMaterialPdfFile(file){
   if(file.type!=='application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){
@@ -6383,12 +6600,7 @@ async function processMaterialPdfFile(file){
   state.matDraftLoading = true;
   render();
   try{
-    const dataUrl = await new Promise((resolve,reject)=>{
-      const reader = new FileReader();
-      reader.onload = ()=>resolve(reader.result);
-      reader.onerror = ()=>reject(new Error('Não foi possível ler o arquivo'));
-      reader.readAsDataURL(file);
-    });
+    const dataUrl = await readFileAsDataUrl(file);
     state.matDraftPdfData = dataUrl;
     if(!state.matDraftTitulo) state.matDraftTitulo = file.name.replace(/\.pdf$/i, '');
     state.matDraftLoading = false;
@@ -6407,20 +6619,24 @@ async function submitMaterialUpload(ev){
   if(!titulo){ showToast('Dê um nome ao material.', true); return; }
   const id = uid();
   const criadoEm = Date.now();
-  const meta = {id, titulo, criadoEm, destinatarios:[]};
-  const full = {id, titulo, criadoEm, pdfData: state.matDraftPdfData, pdfName: state.matDraftPdfName, destinatarios:[]};
+  const pastaId = state.matDraftPastaId || null;
+  // destinatarios nasce vazio de propósito: um material novo fica visível só
+  // para o professor até ele enviar para os alunos (mesmo padrão de cifras) —
+  // por isso também não dispara pushNotification aqui, igual a uma cifra nova.
+  const meta = {id, titulo, criadoEm, destinatarios:[], pastaId};
+  const full = {id, titulo, criadoEm, pdfData: state.matDraftPdfData, pdfName: state.matDraftPdfName, destinatarios:[], pastaId};
   state.materiaisIndex.push(meta);
   state.materiaisDetailCache[id] = full;
   state.materialUploadOpen = false;
   render();
   const okDetail = await saveMaterialDetail(id, full);
   const okIndex = await saveMateriaisIndex();
-  await pushNotification('material', id, titulo, []);
   if(okDetail && okIndex){
     showToast('Material enviado.');
   } else {
     showToast('O material apareceu na lista, mas não foi possível salvá-lo de forma permanente (o arquivo pode ser grande demais). Ele pode se perder ao recarregar a página.', true);
   }
+  state.matDraftPastaId = '';
 }
 async function deleteMaterial(id, ev){
   if(ev) ev.stopPropagation();
@@ -7046,6 +7262,12 @@ function itemContextMenuHtml(){
   const vw = window.innerWidth, vh = window.innerHeight;
   const left = Math.min(m.x, vw-180);
   const top = Math.min(m.y, vh-90);
+  if(m.type==='material'){
+    return `<div class="ctx-menu" style="left:${left}px;top:${top}px;">
+      <button type="button" onclick="openMaterialMoveModal('${m.id}')">${FOLDER_SVG} Mover</button>
+      <button type="button" class="ctx-menu-danger" onclick="closeItemContextMenu();deleteMaterial('${m.id}')">✕ Excluir</button>
+    </div>`;
+  }
   return `<div class="ctx-menu" style="left:${left}px;top:${top}px;">
     <button type="button" onclick="itemContextMenuEdit()">${EDIT_SVG} Editar</button>
     <button type="button" class="ctx-menu-danger" onclick="itemContextMenuDelete()">✕ Excluir</button>
@@ -7518,10 +7740,16 @@ function renderApp(){
   if(state.view==='materiais'){
     const email = state.session && state.session.email;
     const mf = state.matFiltro;
-    const visiveis = state.materiaisIndex.filter(m=>
-      (!m.destinatarios || m.destinatarios.length===0 || !!state.professorMode || (email && m.destinatarios.includes(email))) &&
+    let visiveis = state.materiaisIndex.filter(m=>
+      (!!state.professorMode || (email && m.destinatarios && m.destinatarios.includes(email))) &&
       (!mf.busca || m.titulo.toLowerCase().includes(mf.busca.toLowerCase()))
-    ).sort((a,b)=>b.criadoEm-a.criadoEm);
+    );
+    const pastaAtiva = state.matPastaFiltro;
+    const pastaIdsComItem = new Set(visiveis.filter(m=>m.pastaId).map(m=>m.pastaId));
+    const pastasVisiveis = getMateriaisPastas().filter(p=>pastaIdsComItem.has(p.id));
+    if(pastaAtiva==='sem-pasta') visiveis = visiveis.filter(m=>!m.pastaId);
+    else if(pastaAtiva) visiveis = visiveis.filter(m=>m.pastaId===pastaAtiva);
+    visiveis = sortedMateriais(visiveis);
     app.innerHTML = `
       <div class="topbar">
         ${brandHtml(false)}
@@ -7537,7 +7765,25 @@ function renderApp(){
         </div>
       </div>
       <div class="hint" style="margin:-6px 0 14px;">PDFs enviados pelo seu professor. Clique para abrir.</div>
-      ${visiveis.length===0?`<div class="empty"><span class="big">${ICON_FILE_BIG}</span>${state.materiaisIndex.length===0?'Nenhum material disponível ainda.':'Nenhum material encontrado com esse filtro.'}</div>`:
+      ${pastasVisiveis.length?`<div class="chip-row" style="margin-bottom:14px;">
+        <button type="button" class="chip chip-btn ${!pastaAtiva?'active':''}" onclick="setMatPastaFiltro(null)">Todos</button>
+        ${pastasVisiveis.map(p=>`<button type="button" class="chip chip-btn ${pastaAtiva===p.id?'active':''}" onclick="setMatPastaFiltro('${p.id}')">${escapeHtml(p.nome)}</button>`).join('')}
+      </div>`:''}
+      <div class="filters">
+        <div class="sort-group">
+          <span class="tlabel">Classificar por</span>
+          <select onchange="setMatSortMode(this.value)">
+            <option value="data" ${state.matSortMode==='data'?'selected':''}>Ordem de envio</option>
+            <option value="alfabetica" ${state.matSortMode==='alfabetica'?'selected':''}>Ordem alfabética</option>
+          </select>
+          ${state.matSortMode==='data'?`
+          <select onchange="setMatSortDir(this.value)">
+            <option value="desc" ${state.matSortDir==='desc'?'selected':''}>Mais recentes primeiro</option>
+            <option value="asc" ${state.matSortDir==='asc'?'selected':''}>Mais antigas primeiro</option>
+          </select>`:''}
+        </div>
+      </div>
+      ${visiveis.length===0?`<div class="empty"><span class="big">${ICON_FILE_BIG}</span>${(mf.busca||pastaAtiva)?'Nenhum material encontrado com esse filtro.':(state.professorMode?'Nenhum material disponível ainda.':'Seu professor ainda não enviou nenhum material para você.')}</div>`:
       `<div class="cifra-list">${visiveis.map(m=>`
         <div class="cifra-row" onclick="openMaterialViewer('${m.id}')">
           <div class="avatar">${ICON_FILE}</div>
