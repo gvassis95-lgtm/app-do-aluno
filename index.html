@@ -5176,15 +5176,34 @@ async function submitAlunoCadastro(ev){
     showToast('Aluno cadastrado. Senha inicial: '+(senha||'123456'));
   }catch(e){ showToast('Não foi possível cadastrar o aluno: '+e.message, true); }
 }
+// Correção de 15/09/2026: remover um aluno tem que apagar a conta dele no
+// Supabase Auth por completo, não só a linha em "profiles" — senão o e-mail
+// fica "preso" (o Auth ainda tem a conta) e cadastrar o mesmo aluno de novo,
+// no futuro, falha com erro de e-mail já existente. Apagar a conta do Auth
+// exige a API de Admin (service_role), que só roda em uma Edge Function
+// (mesmo padrão de criar-aluno/resetar-senha-aluno) — functions/v1/remover-aluno.
+// Apagando a conta do Auth, o "profiles" (e tudo que depende dele: perfis,
+// tarefas, notificações lidas) é apagado junto automaticamente (ON DELETE CASCADE).
 async function removeAlunoAutorizado(email){
-  const ok = await customConfirm('Remover o acesso deste aluno?');
+  const aluno = (state.alunosAutorizados||[]).find(a=>a.email===email);
+  if(!aluno) return;
+  const ok = await customConfirm('Remover o acesso deste aluno? O e-mail poderá ser cadastrado novamente no futuro, se necessário.');
   if(!ok) return;
   if(!sb) return;
-  try{ await sb.from('profiles').delete().eq('email', email); }catch(e){ showToast('Não foi possível remover o aluno.', true); return; }
+  try{
+    const { data: { session } } = await sb.auth.getSession();
+    const resp = await fetch(SUPABASE_URL+'/functions/v1/remover-aluno', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey': SUPABASE_PUBLISHABLE_KEY, 'Authorization':'Bearer '+(session&&session.access_token) },
+      body: JSON.stringify({ id: aluno.id })
+    });
+    const out = await resp.json();
+    if(!resp.ok) throw new Error(out.error||'Erro ao remover aluno.');
+  }catch(e){ showToast('Não foi possível remover o aluno: '+e.message, true); return; }
   state.alunosAutorizados = (state.alunosAutorizados||[]).filter(a=>normalizeEmail(a.email)!==normalizeEmail(email));
   if(state.professorStudentEmail && normalizeEmail(state.professorStudentEmail)===normalizeEmail(email)) state.professorStudentEmail = null;
   render();
-  showToast('Aluno removido.');
+  showToast('Aluno removido. O e-mail já pode ser usado para um novo cadastro, se precisar.');
 }
 // Pedido do usuário em 14/09/2026: "Redefinir senha do aluno" na Área do
 // Professor, sempre pra "123456" — igual à senha padrão de um cadastro
@@ -5193,10 +5212,7 @@ async function removeAlunoAutorizado(email){
 // por segurança essa chave nunca pode ficar no navegador, então isso
 // precisa passar por uma Edge Function (mesmo padrão já usado por
 // criar-aluno: ela confere que quem chamou é professor antes de agir).
-// IMPORTANTE: esta função de borda ainda não foi publicada no Supabase —
-// o botão existe e chama a rota certa, mas só vai funcionar de verdade
-// depois do deploy de functions/v1/resetar-senha-aluno (fonte em
-// /tmp/work/supabase_edge_function_resetar_senha_aluno/index.ts).
+// A função functions/v1/resetar-senha-aluno já está publicada no Supabase.
 async function resetarSenhaAluno(email){
   const aluno = (state.alunosAutorizados||[]).find(a=>a.email===email);
   if(!aluno) return;
@@ -5244,18 +5260,47 @@ async function saveAlunoDetalhe(ev){
   const emailAtual = state.professorStudentEmail;
   const idx = (state.alunosAutorizados||[]).findIndex(a=>a.email===emailAtual);
   if(idx<0 || !sb) return;
+  const aluno = state.alunosAutorizados[idx];
   const nome = (document.getElementById('det_nome')||{}).value?.trim() || '';
   const dataInicio = (document.getElementById('det_data_inicio')||{}).value || '';
   const dataFim = (document.getElementById('det_data_fim')||{}).value || '';
-  // O e-mail de login e a senha não são mais editados por aqui: o e-mail é fixo
-  // (é a identidade da conta no Supabase Auth) e a senha só o próprio aluno troca,
-  // em "Editar perfil".
+  const emailRaw = (document.getElementById('det_email')||{}).value?.trim() || '';
+  const novoEmail = normalizeEmail(emailRaw);
+  const emailMudou = !!novoEmail && novoEmail!==normalizeEmail(emailAtual);
+  if(emailMudou){
+    if(!novoEmail){ showToast('Informe um e-mail válido.', true); return; }
+    if((state.alunosAutorizados||[]).some(a=>a.email!==aluno.email && normalizeEmail(a.email)===novoEmail)){
+      showToast('Esse e-mail já está cadastrado para outro aluno.', true);
+      return;
+    }
+  }
+  // Correção de 15/09/2026: o e-mail agora pode ser trocado por aqui. Como ele
+  // também é a identidade da conta no Supabase Auth, a troca exige a API de
+  // Admin (service_role) — feita na Edge Function functions/v1/editar-email-aluno,
+  // que atualiza o Auth e chama a função trocar_email_aluno() no banco (que
+  // atualiza profiles.email e reescreve os "destinatarios" salvos em
+  // cifras/solos/materiais/notificacoes). Isso roda ANTES do update abaixo,
+  // porque o update usa .eq('email', ...) e precisa mirar o e-mail já trocado.
+  let emailFinal = emailAtual;
+  if(emailMudou){
+    try{
+      const { data: { session } } = await sb.auth.getSession();
+      const resp = await fetch(SUPABASE_URL+'/functions/v1/editar-email-aluno', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'apikey': SUPABASE_PUBLISHABLE_KEY, 'Authorization':'Bearer '+(session&&session.access_token) },
+        body: JSON.stringify({ id: aluno.id, novoEmail: emailRaw })
+      });
+      const out = await resp.json();
+      if(!resp.ok) throw new Error(out.error||'Erro ao trocar o e-mail.');
+      emailFinal = novoEmail;
+    }catch(e){ showToast('Não foi possível trocar o e-mail: '+e.message, true); return; }
+  }
   try{
     await sb.from('profiles').update({
       nome, foto: state.detFotoPreview||'', data_inicio: dataInicio||null, data_fim: dataFim||null
-    }).eq('email', emailAtual);
+    }).eq('email', emailFinal);
   }catch(e){ showToast('Não foi possível salvar. Verifique a conexão.', true); return; }
-  state.alunosAutorizados[idx] = Object.assign({}, state.alunosAutorizados[idx], {nome, foto: state.detFotoPreview||'', dataInicio, dataFim});
+  state.alunosAutorizados[idx] = Object.assign({}, state.alunosAutorizados[idx], {nome, email: emailFinal, foto: state.detFotoPreview||'', dataInicio, dataFim});
   // Pedido do usuário em 14/09/2026: ao salvar, a tela deve voltar sozinha para a
   // lista de alunos, em vez de ficar parada na própria tela de edição — por isso
   // professorStudentEmail (e o preview de foto, que só faz sentido dentro do
@@ -5263,7 +5308,7 @@ async function saveAlunoDetalhe(ev){
   state.professorStudentEmail = null;
   state.detFotoPreview = null;
   render();
-  showToast('Dados do aluno salvos.');
+  showToast(emailMudou ? 'Dados do aluno salvos. O e-mail de login foi atualizado.' : 'Dados do aluno salvos.');
 }
 
 function getSendListFor(type){
@@ -5739,7 +5784,8 @@ function professorAlunoDetalheHtml(){
       </div>
       <form onsubmit="saveAlunoDetalhe(event)">
         <div class="login-field"><label>Nome</label><input id="det_nome" type="text" value="${escapeHtml(state.detNomeDraft||'')}"></div>
-        <div class="login-field"><label>E-mail</label><input id="det_email" type="text" value="${escapeHtml(state.detEmailDraft||'')}" disabled title="O e-mail de login não pode ser trocado por aqui."></div>
+        <div class="login-field"><label>E-mail</label><input id="det_email" type="text" value="${escapeHtml(state.detEmailDraft||'')}"></div>
+        <div class="hint" style="margin-top:-6px;">Atenção: este e-mail também é o login do aluno. Se você trocar, ele(a) vai precisar usar o novo e-mail para entrar da próxima vez.</div>
         <p class="hint" style="margin:-4px 0 4px;">A senha é definida no cadastro. O próprio aluno pode trocar em "Editar perfil".</p>
         <button type="button" class="text-link-btn" style="margin-bottom:12px;" onclick='resetarSenhaAluno(${JSON.stringify(aluno.email)})'>Redefinir senha do aluno</button>
         <div class="aluno-datas-row">
