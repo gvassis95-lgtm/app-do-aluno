@@ -673,7 +673,7 @@
   .profile-section h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);}
   .profile-section p{margin:0;font-size:13px;line-height:1.5;}
   .chip-row{display:flex;flex-wrap:wrap;gap:6px;}
-  .chip{background:var(--pill-bg);padding:5px 12px;border-radius:999px;font-size:12px;}
+  .chip{background:var(--pill-bg);color:var(--text);padding:5px 12px;border-radius:999px;font-size:12px;}
   .wishlist-view{margin:0;padding-left:18px;font-size:13px;line-height:1.7;}
   .list-vermais-btn{display:block;width:100%;text-align:right;margin-top:8px;background:none;border:none;color:var(--muted);font-size:11.5px;font-weight:600;cursor:pointer;padding:2px 0 0;font-family:'Montserrat',sans-serif;transition:color .25s;}
   .list-vermais-btn:hover{color:var(--accent);}
@@ -1885,7 +1885,7 @@ let state = {
   materiaisIndex:[], materiaisDetailCache:{}, materialUploadOpen:false, matDraftTitulo:'', matDraftPdfData:null, matDraftPdfName:'', matDraftLoading:false, matDraftPastaId:'',
   matFiltro:{busca:''}, matSearchOpen:false, materialViewId:null,
   matSortMode:'data', matSortDir:'desc', matPastaFiltro:null, materialMoveId:null,
-  matNovaPastaModalOpen:false, matNovaPastaNomeDraft:'', matGerenciarPastasOpen:false,
+  matNovaPastaModalOpen:false, matNovaPastaNomeDraft:'', matNovaPastaReturnTo:null, matGerenciarPastasOpen:false,
   notifications:[], notificationsRead:[], notifPanelOpen:false,
   cadNomeDraft:'', cadEmailDraft:'', cadSenhaDraft:'',
   detNomeDraft:'', detEmailDraft:'', detSenhaDraft:'', detDataInicioDraft:'', detDataFimDraft:'',
@@ -4852,8 +4852,21 @@ function sortedMateriais(items){
 // entre professor e alunos, sem precisar de tabela nova no banco.
 function getMateriaisPastas(){ return (state.config && state.config.materiaisPastas) || []; }
 function pastaNome(id){ const p = getMateriaisPastas().find(x=>x.id===id); return p ? p.nome : ''; }
-function openNovaPastaModal(){ state.matNovaPastaModalOpen = true; state.matNovaPastaNomeDraft=''; render(); }
-function closeNovaPastaModal(){ state.matNovaPastaModalOpen = false; render(); }
+// [Rodada 34 — 15/09/2026] `openNovaPastaModal` aceita um `returnTo` opcional
+// ('gerenciar', ou o id do material que estava sendo movido) para lembrar de
+// onde o usuário veio. Antes, "Gerenciar pastas" → "+ Nova pasta" não fechava
+// a janela de trás (bug reportado pelo usuário: a janela de criar pasta abria
+// por cima de "Gerenciar pastas", que só sumia se fechada manualmente depois).
+// `resolveNovaPastaReturn()` também reabre a tela de origem ao terminar
+// (criar ou cancelar), então o usuário não perde o contexto de onde estava.
+function openNovaPastaModal(returnTo){ state.matNovaPastaModalOpen = true; state.matNovaPastaNomeDraft=''; state.matNovaPastaReturnTo = returnTo || null; render(); }
+function resolveNovaPastaReturn(){
+  const returnTo = state.matNovaPastaReturnTo;
+  state.matNovaPastaReturnTo = null;
+  if(returnTo==='gerenciar'){ state.matGerenciarPastasOpen = true; }
+  else if(returnTo){ state.materialMoveId = returnTo; }
+}
+function closeNovaPastaModal(){ state.matNovaPastaModalOpen = false; resolveNovaPastaReturn(); render(); }
 async function criarPasta(){
   const nome = (state.matNovaPastaNomeDraft||'').trim();
   if(!nome){ showToast('Dê um nome à pasta.', true); return; }
@@ -4863,6 +4876,7 @@ async function criarPasta(){
   state.config.materiaisPastas.push(pasta);
   state.matNovaPastaModalOpen = false;
   state.matNovaPastaNomeDraft = '';
+  resolveNovaPastaReturn();
   render();
   await saveConfigEscola();
   showToast('Pasta criada.');
@@ -5544,7 +5558,7 @@ function materialMoveModalHtml(){
         ${pastas.length===0?'<p class="hint" style="margin:0;">Nenhuma pasta criada ainda.</p>':''}
       </div>
       <div class="form-actions">
-        <button type="button" class="text-link-btn" style="margin-right:auto;" onclick="closeMaterialMoveModal();openNovaPastaModal();">+ Nova pasta</button>
+        <button type="button" class="text-link-btn" style="margin-right:auto;" onclick="const _mvId=state.materialMoveId;closeMaterialMoveModal();openNovaPastaModal(_mvId);">+ Nova pasta</button>
         <button type="button" class="btn-ghost" onclick="closeMaterialMoveModal()">Fechar</button>
       </div>
     </div>
@@ -5582,7 +5596,7 @@ function gerenciarPastasModalHtml(){
         </div>`).join('')}
       </div>`}
       <div class="form-actions">
-        <button type="button" class="text-link-btn" style="margin-right:auto;" onclick="openNovaPastaModal()">+ Nova pasta</button>
+        <button type="button" class="text-link-btn" style="margin-right:auto;" onclick="closeGerenciarPastas();openNovaPastaModal('gerenciar');">+ Nova pasta</button>
         <button type="button" class="btn-ghost" onclick="closeGerenciarPastas()">Fechar</button>
       </div>
     </div>
